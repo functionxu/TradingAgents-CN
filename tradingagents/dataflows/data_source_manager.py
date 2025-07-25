@@ -195,15 +195,32 @@ class DataSourceManager:
         try:
             # 根据数据源调用相应的获取方法
             if self.current_source == ChinaDataSource.TUSHARE:
-                logger.info(f"🔍 [股票代码追踪] 调用 Tushare 数据源，传入参数: symbol='{symbol}'")
+                logger.info(f"🔍 [Tushare调用] 开始调用Tushare数据源")
+                logger.info(f"🔍 [Tushare参数] symbol='{symbol}', start_date='{start_date}', end_date='{end_date}'")
+                tushare_start = time.time()
                 result = self._get_tushare_data(symbol, start_date, end_date)
+                tushare_duration = time.time() - tushare_start
+                logger.info(f"🔍 [Tushare响应] 调用耗时: {tushare_duration:.2f}秒，结果长度: {len(str(result)) if result else 0}")
             elif self.current_source == ChinaDataSource.AKSHARE:
+                logger.info(f"🔍 [AKShare调用] 开始调用AKShare数据源")
+                akshare_start = time.time()
                 result = self._get_akshare_data(symbol, start_date, end_date)
+                akshare_duration = time.time() - akshare_start
+                logger.info(f"🔍 [AKShare响应] 调用耗时: {akshare_duration:.2f}秒，结果长度: {len(str(result)) if result else 0}")
             elif self.current_source == ChinaDataSource.BAOSTOCK:
+                logger.info(f"🔍 [BaoStock调用] 开始调用BaoStock数据源")
+                baostock_start = time.time()
                 result = self._get_baostock_data(symbol, start_date, end_date)
+                baostock_duration = time.time() - baostock_start
+                logger.info(f"🔍 [BaoStock响应] 调用耗时: {baostock_duration:.2f}秒，结果长度: {len(str(result)) if result else 0}")
             elif self.current_source == ChinaDataSource.TDX:
+                logger.info(f"🔍 [TDX调用] 开始调用TDX数据源（已弃用）")
+                tdx_start = time.time()
                 result = self._get_tdx_data(symbol, start_date, end_date)
+                tdx_duration = time.time() - tdx_start
+                logger.info(f"🔍 [TDX响应] 调用耗时: {tdx_duration:.2f}秒，结果长度: {len(str(result)) if result else 0}")
             else:
+                logger.error(f"❌ [数据源错误] 不支持的数据源: {self.current_source.value}")
                 result = f"❌ 不支持的数据源: {self.current_source.value}"
 
             # 记录详细的输出结果
@@ -262,25 +279,32 @@ class DataSourceManager:
     
     def _get_tushare_data(self, symbol: str, start_date: str, end_date: str) -> str:
         """使用Tushare获取数据"""
-        logger.debug(f"📊 [Tushare] 调用参数: symbol={symbol}, start_date={start_date}, end_date={end_date}")
+        logger.info(f"📊 [Tushare适配器] 开始执行: symbol={symbol}, start_date={start_date}, end_date={end_date}")
 
         # 添加详细的股票代码追踪日志
         logger.info(f"🔍 [股票代码追踪] _get_tushare_data 接收到的股票代码: '{symbol}' (类型: {type(symbol)})")
         logger.info(f"🔍 [股票代码追踪] 股票代码长度: {len(str(symbol))}")
         logger.info(f"🔍 [股票代码追踪] 股票代码字符: {list(str(symbol))}")
-        logger.info(f"🔍 [DataSourceManager详细日志] _get_tushare_data 开始执行")
-        logger.info(f"🔍 [DataSourceManager详细日志] 当前数据源: {self.current_source.value}")
+        logger.info(f"🔍 [Tushare适配器] 当前数据源: {self.current_source.value}")
 
         start_time = time.time()
         try:
+            logger.info(f"🔄 [Tushare适配器] 步骤1: 导入interface模块")
             from .interface import get_china_stock_data_tushare
-            logger.info(f"🔍 [股票代码追踪] 调用 get_china_stock_data_tushare，传入参数: symbol='{symbol}'")
-            logger.info(f"🔍 [DataSourceManager详细日志] 开始调用interface.get_china_stock_data_tushare...")
 
+            logger.info(f"🔄 [Tushare适配器] 步骤2: 调用get_china_stock_data_tushare")
+            logger.info(f"🔍 [Tushare参数] symbol='{symbol}', start_date='{start_date}', end_date='{end_date}'")
+
+            interface_start = time.time()
             result = get_china_stock_data_tushare(symbol, start_date, end_date)
+            interface_duration = time.time() - interface_start
 
             duration = time.time() - start_time
-            logger.info(f"🔍 [DataSourceManager详细日志] interface调用完成，耗时: {duration:.3f}秒")
+            logger.info(f"🔄 [Tushare适配器] 步骤3: interface调用完成")
+            logger.info(f"⏱️ [Tushare性能] interface调用耗时: {interface_duration:.3f}秒")
+            logger.info(f"⏱️ [Tushare性能] 总耗时: {duration:.3f}秒")
+            logger.info(f"📊 [Tushare结果] 结果类型: {type(result)}, 长度: {len(str(result)) if result else 0}")
+            logger.info(f"📊 [Tushare预览] 结果前200字符: {str(result)[:200] if result else 'None'}...")
             logger.info(f"🔍 [股票代码追踪] get_china_stock_data_tushare 返回结果前200字符: {result[:200] if result else 'None'}")
             logger.info(f"🔍 [DataSourceManager详细日志] 返回结果类型: {type(result)}")
             logger.info(f"🔍 [DataSourceManager详细日志] 返回结果长度: {len(result) if result else 0}")

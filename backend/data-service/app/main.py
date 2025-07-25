@@ -711,18 +711,31 @@ async def get_stock_data(
         current_logger.info(f"🎯 [数据源参数] symbol={request.symbol}, start_date={request.start_date}, end_date={request.end_date}")
         current_logger.info(f"⏰ [超时控制] 设置超时时间: {timeout_seconds}秒")
 
-        try:
-            import time
-            start_time = time.time()
+        # 创建一个包装函数来添加详细日志
+        def get_data_with_logging():
+            current_logger.info(f"🔄 [数据源执行] 进入get_china_stock_data_unified函数")
 
-            # 使用asyncio.wait_for添加超时控制
-            stock_data = await asyncio.wait_for(
-                asyncio.to_thread(
-                    get_china_stock_data_unified,
+            try:
+                result = get_china_stock_data_unified(
                     request.symbol,
                     request.start_date,
                     request.end_date
-                ),
+                )
+                current_logger.info(f"✅ [数据源执行] get_china_stock_data_unified返回成功")
+                current_logger.info(f"📊 [数据源结果] 结果类型: {type(result)}, 长度: {len(str(result)) if result else 0}")
+                return result
+            except Exception as e:
+                current_logger.error(f"❌ [数据源执行] get_china_stock_data_unified异常: {type(e).__name__}: {str(e)}")
+                raise
+
+        try:
+            import time
+            start_time = time.time()
+            current_logger.info(f"⏰ [超时开始] 开始计时，超时限制: {timeout_seconds}秒")
+
+            # 使用asyncio.wait_for添加超时控制
+            stock_data = await asyncio.wait_for(
+                asyncio.to_thread(get_data_with_logging),
                 timeout=timeout_seconds
             )
 
