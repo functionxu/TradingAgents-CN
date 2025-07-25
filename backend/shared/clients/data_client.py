@@ -50,8 +50,18 @@ class DataClient(BaseServiceClient):
                 params["end_date"] = end_date
             
             self.logger.debug(f"Getting stock data: {symbol}")
-            response = await self.get("/api/v1/stock/data", params)
-            
+
+            # 数据服务使用POST方法和不同的端点
+            data = {
+                "symbol": symbol,
+                "start_date": start_date,
+                "end_date": end_date,
+                "period": period,
+                **kwargs
+            }
+
+            response = await self.post("/api/stock/data", data)
+
             self.logger.debug(f"Stock data response: {response.get('success', False)}")
             return response
             
@@ -163,13 +173,67 @@ class DataClient(BaseServiceClient):
                 params["symbol"] = symbol
             
             self.logger.debug(f"Getting news data: {symbol or 'all'}")
-            response = await self.get("/api/v1/news/data", params)
-            
+
+            # 数据服务使用不同的端点格式
+            if symbol:
+                # 获取特定股票的新闻
+                response = await self.get(f"/api/stock/news/{symbol}")
+            else:
+                # 获取通用新闻 - 使用股票信息接口作为替代
+                # TODO: 数据服务需要添加通用新闻接口
+                response = {"success": False, "message": "通用新闻接口暂未实现"}
+
             self.logger.debug(f"News data response: {response.get('success', False)}")
             return response
-            
+
         except Exception as e:
             self.logger.error(f"Get news data failed: {e}")
+            raise
+
+    async def get_news_sentiment(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取新闻情绪数据 (智能体专用接口)
+
+        Args:
+            symbol: 股票代码
+
+        Returns:
+            新闻情绪数据
+        """
+        try:
+            self.logger.debug(f"Getting news sentiment: {symbol}")
+
+            # 调用股票新闻接口
+            response = await self.get(f"/api/stock/news/{symbol}")
+
+            self.logger.debug(f"News sentiment response: {response.get('success', False)}")
+            return response
+
+        except Exception as e:
+            self.logger.error(f"Get news sentiment failed: {e}")
+            raise
+
+    async def get_financial_statements(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取财务报表数据 (智能体专用接口)
+
+        Args:
+            symbol: 股票代码
+
+        Returns:
+            财务报表数据
+        """
+        try:
+            self.logger.debug(f"Getting financial statements: {symbol}")
+
+            # 调用股票信息接口获取财务数据
+            response = await self.get(f"/api/stock/info/{symbol}")
+
+            self.logger.debug(f"Financial statements response: {response.get('success', False)}")
+            return response
+
+        except Exception as e:
+            self.logger.error(f"Get financial statements failed: {e}")
             raise
     
     async def search_stocks(
