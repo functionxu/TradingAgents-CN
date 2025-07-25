@@ -21,12 +21,16 @@ logger = logging.getLogger(__name__)
 class TradingGraph:
     """Backend交易图引擎"""
     
-    def __init__(self):
+    def __init__(self, llm_client=None, data_client=None):
         self.graph: Optional[StateGraph] = None
         self.compiled_graph = None
         self.agent_nodes: Optional[AgentNodes] = None
         self.conditional_logic: Optional[ConditionalLogic] = None
-        
+
+        # 客户端
+        self.llm_client = llm_client
+        self.data_client = data_client
+
         # 配置参数
         self.config = {
             "max_debate_rounds": 3,
@@ -47,12 +51,14 @@ class TradingGraph:
                 max_risk_rounds=self.config["max_risk_rounds"]
             )
             
-            # 初始化Agent节点 - 需要传递LLM和数据客户端
-            # TODO: 从配置或依赖注入获取客户端
+            # 初始化Agent节点 - 使用传入的客户端
             logger.info("🔧 创建智能体节点管理器...")
+            logger.info(f"🔧 LLM客户端: {self.llm_client is not None}")
+            logger.info(f"🔧 数据客户端: {self.data_client is not None}")
+
             self.agent_nodes = AgentNodes(
-                llm_client=None,  # 暂时为None，后续需要集成LLM服务
-                data_client=None  # 暂时为None，后续需要集成数据服务
+                llm_client=self.llm_client,
+                data_client=self.data_client
             )
             await self.agent_nodes.initialize()
             

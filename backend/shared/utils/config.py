@@ -157,11 +157,22 @@ def get_service_config(service_name: str) -> Dict[str, Any]:
     """获取特定服务的配置"""
     config = get_config()
 
-    # 服务URL映射
+    # 服务URL映射 - 优先使用URL配置，否则从HOST和PORT构建
+    def build_service_url(service_key: str, default_port: int) -> str:
+        # 优先使用完整URL配置
+        url_key = f"{service_key}_SERVICE_URL"
+        if config.get(url_key):
+            return config.get(url_key)
+
+        # 从HOST和PORT构建URL
+        host = config.get(f"{service_key}_SERVICE_HOST", 'localhost')
+        port = config.get(f"{service_key}_SERVICE_PORT", default_port)
+        return f"http://{host}:{port}"
+
     service_urls = {
-        'data_service_url': config.get('DATA_SERVICE_URL', 'http://localhost:8002'),
-        'llm_service_url': config.get('LLM_SERVICE_URL', 'http://localhost:8003'),
-        'agent_service_url': config.get('AGENT_SERVICE_URL', 'http://localhost:8004'),
+        'data_service_url': build_service_url('DATA', 8002),
+        'llm_service_url': build_service_url('LLM', 8004),
+        'agent_service_url': build_service_url('AGENT', 8008),
         'web_service_url': config.get('WEB_SERVICE_URL', 'http://localhost:8000'),
     }
 

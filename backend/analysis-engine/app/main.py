@@ -527,7 +527,27 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
 
         # 初始化图引擎
         logger.info(f"🔍 创建 TradingGraph 实例...")
-        analyzer = TradingGraph()
+
+        # 获取全局客户端
+        global llm_client, data_client
+        llm_adapter = None
+        if llm_client:
+            llm_adapter = LLMClientAdapter(llm_client)
+            logger.info("✅ 为图引擎创建LLM适配器")
+        else:
+            logger.warning("⚠️ LLM客户端未初始化，图引擎将无法生成AI分析")
+
+        if data_client:
+            logger.info("✅ 为图引擎使用数据客户端")
+        else:
+            logger.warning("⚠️ 数据客户端未初始化，图引擎将无法获取数据")
+
+        # 创建图实例并传递客户端
+        analyzer = TradingGraph(
+            llm_client=llm_adapter,
+            data_client=data_client
+        )
+
         logger.info(f"🔍 初始化图引擎...")
         await analyzer.initialize()  # 初始化图引擎和所有组件
         logger.info(f"🔍 图引擎初始化完成")
