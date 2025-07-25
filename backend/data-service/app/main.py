@@ -502,40 +502,58 @@ async def get_stock_info(
             raise HTTPException(status_code=400, detail="股票代码不能为空")
 
         debug_logger.debug_validation_passed("symbol")
-        logger.info(f"📊 获取股票信息: {symbol}")
+        logger.info(f"📊 [股票信息] 开始获取: {symbol} (强制刷新: {force_refresh})")
 
         # 检查缓存
         cache_key = f"stock_info:{symbol}"
         debug_logger.debug_cache_check_start(symbol, "stock_info")
+        logger.info(f"🔍 [缓存检查] Redis可用: {redis_client is not None}, 强制刷新: {force_refresh}")
 
         # 检查缓存（除非强制刷新）
         if redis_client and not force_refresh:
+            logger.info(f"🔍 [缓存检查] 查询Redis缓存键: {cache_key}")
             cached_data = await redis_client.get(cache_key)
             if cached_data:
                 debug_logger.debug_cache_check_result("hit", symbol)
-                logger.debug(f"💾 从缓存获取股票信息: {symbol}")
+                logger.info(f"💾 [缓存命中] 从Redis获取股票信息: {symbol}")
                 import json
+                cached_result = json.loads(cached_data)
+                logger.info(f"✅ [缓存返回] 股票信息: {symbol} -> {cached_result.get('name', 'Unknown')}")
 
                 debug_logger.debug_api_response_prepared(200)
                 return APIResponse(
                     success=True,
                     message="获取股票信息成功（缓存）",
-                    data=json.loads(cached_data)
+                    data=cached_result
                 )
-
-        if force_refresh:
-            logger.info(f"🔄 强制刷新股票信息: {symbol}")
+            else:
+                logger.info(f"🔍 [缓存未命中] Redis中无数据: {cache_key}")
+        else:
+            if not redis_client:
+                logger.warning(f"⚠️ [缓存跳过] Redis不可用")
+            if force_refresh:
+                logger.info(f"🔄 [缓存跳过] 强制刷新模式: {symbol}")
 
         debug_logger.debug_cache_check_result("miss", symbol)
-        
+
         # 从数据源获取
+        logger.info(f"🌐 [数据源调用] 开始调用统一数据源: get_china_stock_info_unified")
+        logger.info(f"🎯 [数据源参数] symbol={symbol}")
         debug_logger.debug_data_source_select("china_stock_unified", symbol)
         debug_logger.debug_data_source_call("china_stock_unified", f"stock_info/{symbol}")
 
+        import time
+        start_time = time.time()
         info_data = get_china_stock_info_unified(symbol)
+        call_duration = time.time() - start_time
+
+        logger.info(f"⏱️ [数据源响应] 调用耗时: {call_duration:.2f}秒")
+        logger.info(f"📊 [数据源响应] 数据类型: {type(info_data)}, 长度: {len(str(info_data)) if info_data else 0}")
 
         if not info_data or "错误" in str(info_data):
             debug_logger.debug_data_source_response("china_stock_unified", "error", 0)
+            logger.error(f"❌ [数据源失败] 未获取到有效数据: {symbol}")
+            logger.error(f"❌ [数据源响应] 原始数据: {info_data}")
             raise HTTPException(status_code=404, detail=f"未找到股票 {symbol} 的信息")
 
         debug_logger.debug_data_source_response("china_stock_unified", "success", len(str(info_data)))
@@ -601,18 +619,24 @@ async def get_stock_info(
         debug_logger.debug_data_transform_end(1)
 
         # 详细调试：打印最终的stock_info内容
-        logger.info(f"🔍 [最终结果] stock_info内容: {stock_info}")
+        logger.info(f"🔍 [数据解析] 最终结果: {stock_info}")
+        logger.info(f"✅ [数据解析] 成功解析股票信息: {symbol} -> {stock_info.get('name', 'Unknown')}")
 
         # 缓存数据
         if redis_client:
+            logger.info(f"💾 [缓存保存] 开始保存到Redis: {cache_key}")
             debug_logger.debug_cache_save_start(symbol, "stock_info")
             import json
+            cache_data = json.dumps(stock_info, ensure_ascii=False)
             await redis_client.setex(
                 cache_key,
                 3600,  # 1小时缓存
-                json.dumps(stock_info, ensure_ascii=False)
+                cache_data
             )
+            logger.info(f"✅ [缓存保存] 成功保存到Redis: {cache_key} (TTL: 3600秒)")
             debug_logger.debug_cache_save_end(symbol, 3600)
+        else:
+            logger.warning(f"⚠️ [缓存跳过] Redis不可用，无法缓存: {symbol}")
 
         # 本地化数据
         debug_logger.debug_data_transform_start("stock_info", "localized_data")
@@ -645,22 +669,36 @@ async def get_stock_data(
         if analysis_id:
             set_analysis_id(analysis_id)
             analysis_logger = AnalysisLoggerAdapter(logger, analysis_id)
-            analysis_logger.info(f"📈 获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
+            analysis_logger.info(f"📈 [股票数据] 开始获取: {request.symbol} ({request.start_date} - {request.end_date})")
+            current_logger = analysis_logger
         else:
-            logger.info(f"📈 获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
-        
+            logger.info(f"📈 [股票数据] 开始获取: {request.symbol} ({request.start_date} - {request.end_date})")
+            current_logger = logger
+
+        current_logger.info(f"📊 [请求参数] symbol={request.symbol}, start_date={request.start_date}, end_date={request.end_date}")
+        current_logger.info(f"📊 [请求参数] data_source={request.data_source}")
+
         # 检查缓存
         cache_key = f"stock_data:{request.symbol}:{request.start_date}:{request.end_date}"
+        current_logger.info(f"🔍 [缓存检查] Redis可用: {redis_client is not None}")
+
         if redis_client:
+            current_logger.info(f"🔍 [缓存检查] 查询Redis缓存键: {cache_key}")
             cached_data = await redis_client.get(cache_key)
             if cached_data:
-                logger.debug(f"💾 从缓存获取股票数据: {request.symbol}")
+                current_logger.info(f"💾 [缓存命中] 从Redis获取股票数据: {request.symbol}")
                 import json
+                cached_result = json.loads(cached_data)
+                current_logger.info(f"✅ [缓存返回] 数据点数量: {len(cached_result.get('close_prices', []))}")
                 return APIResponse(
                     success=True,
                     message="获取股票数据成功（缓存）",
-                    data=json.loads(cached_data)
+                    data=cached_result
                 )
+            else:
+                current_logger.info(f"🔍 [缓存未命中] Redis中无数据: {cache_key}")
+        else:
+            current_logger.warning(f"⚠️ [缓存跳过] Redis不可用")
         
         # 从数据源获取（添加超时处理）
         import asyncio
@@ -669,9 +707,14 @@ async def get_stock_data(
         # 从环境变量获取超时时间，默认30秒
         timeout_seconds = int(os.getenv("DATA_QUERY_TIMEOUT", "30"))
 
-        logger.info(f"🔍 调用数据源获取: {request.symbol} (超时: {timeout_seconds}秒)")
+        current_logger.info(f"🌐 [数据源调用] 开始调用统一数据源: get_china_stock_data_unified")
+        current_logger.info(f"🎯 [数据源参数] symbol={request.symbol}, start_date={request.start_date}, end_date={request.end_date}")
+        current_logger.info(f"⏰ [超时控制] 设置超时时间: {timeout_seconds}秒")
 
         try:
+            import time
+            start_time = time.time()
+
             # 使用asyncio.wait_for添加超时控制
             stock_data = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -682,44 +725,67 @@ async def get_stock_data(
                 ),
                 timeout=timeout_seconds
             )
+
+            call_duration = time.time() - start_time
+            current_logger.info(f"⏱️ [数据源响应] 调用耗时: {call_duration:.2f}秒")
+            current_logger.info(f"📊 [数据源响应] 数据类型: {type(stock_data)}, 长度: {len(str(stock_data)) if stock_data else 0}")
+
         except asyncio.TimeoutError:
+            call_duration = time.time() - start_time
             error_msg = f"数据查询超时 ({timeout_seconds}秒): {request.symbol}"
-            logger.error(f"⏰ {error_msg}")
+            current_logger.error(f"⏰ [数据源超时] {error_msg} (实际耗时: {call_duration:.2f}秒)")
             raise HTTPException(status_code=408, detail=error_msg)
         except Exception as e:
+            call_duration = time.time() - start_time
             error_msg = f"数据查询失败: {str(e)}"
-            logger.error(f"❌ {error_msg}")
+            current_logger.error(f"❌ [数据源异常] {error_msg} (耗时: {call_duration:.2f}秒)")
+            current_logger.error(f"❌ [异常详情] {type(e).__name__}: {str(e)}")
             raise HTTPException(status_code=500, detail=error_msg)
 
-        logger.info(f"🔍 原始数据类型: {type(stock_data)}")
-        logger.info(f"🔍 原始数据长度: {len(str(stock_data)) if stock_data else 0}")
-        logger.info(f"🔍 原始数据完整内容: {str(stock_data) if stock_data else 'None'}")
+        current_logger.info(f"🔍 [原始数据] 类型: {type(stock_data)}")
+        current_logger.info(f"🔍 [原始数据] 长度: {len(str(stock_data)) if stock_data else 0}")
+        current_logger.info(f"🔍 [原始数据] 内容预览: {str(stock_data)[:200] if stock_data else 'None'}...")
 
         if not stock_data or "错误" in str(stock_data):
+            current_logger.error(f"❌ [数据验证] 无效数据: {request.symbol}")
+            current_logger.error(f"❌ [数据内容] {stock_data}")
             raise HTTPException(status_code=404, detail=f"未找到股票 {request.symbol} 的数据")
 
         # 解析数据为结构化格式
-        logger.info(f"🔍 开始解析数据为结构化格式: {request.symbol}")
+        current_logger.info(f"🔄 [数据解析] 开始解析为结构化格式: {request.symbol}")
+        parse_start_time = time.time()
+
         parsed_data = _parse_stock_data_to_structured_format(
             stock_data, request.symbol, request.start_date, request.end_date
         )
 
-        logger.info(f"🔍 解析后数据类型: {type(parsed_data)}")
-        logger.info(f"🔍 解析后数据键: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'Not a dict'}")
+        parse_duration = time.time() - parse_start_time
+        current_logger.info(f"⏱️ [数据解析] 解析耗时: {parse_duration:.2f}秒")
+        current_logger.info(f"🔍 [解析结果] 数据类型: {type(parsed_data)}")
+        current_logger.info(f"🔍 [解析结果] 数据键: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'Not a dict'}")
         if isinstance(parsed_data, dict):
-            logger.info(f"🔍 close_prices数量: {len(parsed_data.get('close_prices', []))}")
-            logger.info(f"🔍 volumes数量: {len(parsed_data.get('volumes', []))}")
-        logger.info(f"🔍 解析后数据: {str(parsed_data)[:300]}")
-        
+            close_count = len(parsed_data.get('close_prices', []))
+            volume_count = len(parsed_data.get('volumes', []))
+            current_logger.info(f"📊 [解析统计] close_prices数量: {close_count}")
+            current_logger.info(f"📊 [解析统计] volumes数量: {volume_count}")
+            current_logger.info(f"✅ [解析成功] 共解析出 {close_count} 个数据点")
+        current_logger.info(f"🔍 [解析预览] 数据内容: {str(parsed_data)[:300]}...")
+
         # 缓存数据
         if redis_client:
+            current_logger.info(f"💾 [缓存保存] 开始保存到Redis: {cache_key}")
             import json
+            cache_data = json.dumps(parsed_data, ensure_ascii=False)
             await redis_client.setex(
                 cache_key,
                 1800,  # 30分钟缓存
-                json.dumps(parsed_data, ensure_ascii=False)
+                cache_data
             )
-        
+            current_logger.info(f"✅ [缓存保存] 成功保存到Redis: {cache_key} (TTL: 1800秒)")
+        else:
+            current_logger.warning(f"⚠️ [缓存跳过] Redis不可用，无法缓存: {request.symbol}")
+
+        current_logger.info(f"🎉 [请求完成] 成功获取股票数据: {request.symbol}")
         return APIResponse(
             success=True,
             message="获取股票数据成功",
@@ -799,20 +865,29 @@ async def get_stock_news(
 ):
     """获取股票新闻"""
     try:
-        logger.info(f"📰 获取股票新闻: {symbol}")
-        
+        logger.info(f"📰 [股票新闻] 开始获取: {symbol}")
+
         # 检查缓存
         cache_key = f"news:{symbol}"
+        logger.info(f"🔍 [缓存检查] Redis可用: {redis_client is not None}")
+
         if redis_client:
+            logger.info(f"🔍 [缓存检查] 查询Redis缓存键: {cache_key}")
             cached_data = await redis_client.get(cache_key)
             if cached_data:
-                logger.debug(f"💾 从缓存获取股票新闻: {symbol}")
+                logger.info(f"💾 [缓存命中] 从Redis获取股票新闻: {symbol}")
                 import json
+                cached_result = json.loads(cached_data)
+                logger.info(f"✅ [缓存返回] 新闻数量: {len(cached_result) if isinstance(cached_result, list) else 'Unknown'}")
                 return APIResponse(
                     success=True,
                     message="获取股票新闻成功（缓存）",
-                    data=json.loads(cached_data)
+                    data=cached_result
                 )
+            else:
+                logger.info(f"🔍 [缓存未命中] Redis中无数据: {cache_key}")
+        else:
+            logger.warning(f"⚠️ [缓存跳过] Redis不可用")
         
         # 从数据源获取 (使用实时新闻API)
         try:
