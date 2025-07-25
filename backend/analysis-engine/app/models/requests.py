@@ -38,7 +38,7 @@ class AnalysisRequest(BaseModel):
 
     # LLM配置
     llm_provider: LLMProvider = Field(default=LLMProvider.DASHSCOPE, description="LLM提供商")
-    model_version: str = Field(default="qwen-plus-latest", description="LLM模型版本")
+    model_version: str = Field(default="qwen-plus-latest", description="LLM模型版本", alias="model_version")
 
     # 分析配置
     enable_memory: bool = Field(default=True, description="是否启用记忆功能")
@@ -67,18 +67,20 @@ class AnalysisRequest(BaseModel):
     def llm_model(self) -> str:
         """LLM模型名称的别名"""
         return self.model_version
-    
+
     class Config:
-        schema_extra = {
+        protected_namespaces = ()  # 允许model_前缀字段
+        json_schema_extra = {
             "example": {
-                "symbol": "AAPL",
-                "analysis_type": "comprehensive",
-                "parameters": {
-                    "enable_fundamentals": True,
-                    "enable_technical": True,
-                    "enable_debate": True,
-                    "model_name": "deepseek-chat"
-                }
+                "stock_code": "000001",
+                "market_type": "A股",
+                "research_depth": 3,
+                "market_analyst": True,
+                "fundamental_analyst": True,
+                "news_analyst": False,
+                "social_analyst": False,
+                "llm_provider": "dashscope",
+                "model_version": "qwen-plus-latest"
             }
         }
 
