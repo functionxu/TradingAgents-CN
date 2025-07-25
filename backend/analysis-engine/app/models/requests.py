@@ -91,7 +91,7 @@ class ToolCallRequest(BaseModel):
     parameters: Dict[str, Any] = Field(..., description="工具参数")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tool_name": "get_stock_data",
                 "parameters": {
