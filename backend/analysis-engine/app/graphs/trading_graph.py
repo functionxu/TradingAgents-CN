@@ -31,13 +31,67 @@ class TradingGraph:
         self.llm_client = llm_client
         self.data_client = data_client
 
-        # 配置参数
-        self.config = {
+        # 默认配置参数
+        self.default_config = {
             "max_debate_rounds": 3,
             "max_risk_rounds": 2,
-            "selected_analysts": ["market", "fundamentals", "news", "social"]
+            "selected_analysts": ["market", "fundamentals", "news", "social"],
+            "llm_provider": "dashscope",
+            "llm_model": "qwen-plus-latest",
+            "research_depth": 3
         }
-    
+
+        # 实际使用的配置（可以被外部覆盖）
+        self.config = self.default_config.copy()
+
+    def update_config(self, request_config: Dict[str, Any]):
+        """根据请求更新配置"""
+        if not request_config:
+            return
+
+        # 更新分析师选择
+        if "analysts" in request_config:
+            self.config["selected_analysts"] = request_config["analysts"]
+            logger.info(f"🔧 更新分析师选择: {request_config['analysts']}")
+
+        # 更新研究深度
+        if "research_depth" in request_config:
+            depth = request_config["research_depth"]
+            self.config["research_depth"] = depth
+
+            # 根据研究深度调整其他参数
+            if depth == 1:  # 快速分析
+                self.config["max_debate_rounds"] = 1
+                self.config["max_risk_rounds"] = 1
+            elif depth == 2:  # 基础分析
+                self.config["max_debate_rounds"] = 1
+                self.config["max_risk_rounds"] = 1
+            elif depth == 3:  # 标准分析
+                self.config["max_debate_rounds"] = 2
+                self.config["max_risk_rounds"] = 2
+            elif depth == 4:  # 深度分析
+                self.config["max_debate_rounds"] = 3
+                self.config["max_risk_rounds"] = 2
+            else:  # 全面分析
+                self.config["max_debate_rounds"] = 3
+                self.config["max_risk_rounds"] = 3
+
+            logger.info(f"🔧 更新研究深度: {depth} (辩论轮数: {self.config['max_debate_rounds']}, 风险轮数: {self.config['max_risk_rounds']})")
+
+        # 更新LLM配置
+        if "llm_provider" in request_config:
+            self.config["llm_provider"] = request_config["llm_provider"]
+            logger.info(f"🔧 更新LLM提供商: {request_config['llm_provider']}")
+
+        if "llm_model" in request_config:
+            self.config["llm_model"] = request_config["llm_model"]
+            logger.info(f"🔧 更新LLM模型: {request_config['llm_model']}")
+
+        # 更新市场类型
+        if "market_type" in request_config:
+            self.config["market_type"] = request_config["market_type"]
+            logger.info(f"🔧 更新市场类型: {request_config['market_type']}")
+
     async def initialize(self):
         """初始化图引擎"""
         try:

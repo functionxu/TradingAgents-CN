@@ -481,25 +481,8 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         )
         logger.info(f"🔍 分析进度更新完成")
         
-        # 准备分析参数
-        analysis_config = {
-            "company_of_interest": request.stock_code,
-            "trade_date": request.analysis_date.strftime("%Y-%m-%d"),
-            "llm_provider": request.llm_provider.value,
-            "model_version": request.model_version,
-            "enable_memory": request.enable_memory,
-            "debug_mode": request.debug_mode,
-            "max_output_length": request.max_output_length,
-            "include_sentiment": request.include_sentiment,
-            "include_risk_assessment": request.include_risk_assessment,
-            "custom_prompt": request.custom_prompt,
-            "selected_analysts": {
-                "market_analyst": request.market_analyst,
-                "social_analyst": request.social_analyst,
-                "news_analyst": request.news_analyst,
-                "fundamental_analyst": request.fundamental_analyst,
-            }
-        }
+        # 准备分析参数（使用新的请求模型）
+        analysis_date = request.analysis_date or datetime.now().strftime("%Y-%m-%d")
         
         # 更新进度：获取数据
         await update_analysis_progress(
@@ -542,11 +525,25 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         else:
             logger.warning("⚠️ 数据客户端未初始化，图引擎将无法获取数据")
 
+        # 准备请求配置
+        request_config = {
+            "analysts": request.analysts or ["market", "fundamentals", "news", "social"],
+            "research_depth": request.research_depth or 3,
+            "llm_provider": request.llm_provider or "dashscope",
+            "llm_model": request.llm_model or "qwen-plus-latest",
+            "market_type": request.market_type or "A股"
+        }
+
+        logger.info(f"🔧 分析配置: {request_config}")
+
         # 创建图实例并传递客户端
         analyzer = TradingGraph(
             llm_client=llm_adapter,
             data_client=data_client
         )
+
+        # 更新图配置
+        analyzer.update_config(request_config)
 
         logger.info(f"🔍 初始化图引擎...")
         await analyzer.initialize()  # 初始化图引擎和所有组件
@@ -554,7 +551,7 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
 
         # 执行图分析 - 使用完整的多智能体图流程
         logger.info(f"🔍 开始执行图分析...")
-        logger.info(f"🔍 调用 analyzer.analyze_stock({analysis_config['company_of_interest']}, {analysis_config['trade_date']})")
+        logger.info(f"🔍 调用 analyzer.analyze_stock({request.stock_code}, {analysis_date})")
 
         # 强制刷新日志
         import sys
@@ -578,8 +575,8 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
 
         # 执行分析并传入进度回调
         analysis_result_raw = await analyzer.analyze_stock(
-            analysis_config["company_of_interest"],
-            analysis_config["trade_date"],
+            symbol=request.stock_code,
+            analysis_date=analysis_date,
             progress_callback=progress_callback
         )
         logger.info(f"🔍 图分析执行完成，结果类型: {type(analysis_result_raw)}")
