@@ -110,9 +110,23 @@ class AdapterFactory:
                 "enabled": True
             }
 
+            configs["qwen-plus-latest"] = {
+                "provider_name": "dashscope",
+                "model_name": "qwen-plus-latest",
+                "api_key": dashscope_api_key,
+                "enabled": True
+            }
+
             configs["qwen-turbo"] = {
                 "provider_name": "dashscope",
                 "model_name": "qwen-turbo",
+                "api_key": dashscope_api_key,
+                "enabled": True
+            }
+
+            configs["qwen-max"] = {
+                "provider_name": "dashscope",
+                "model_name": "qwen-max",
                 "api_key": dashscope_api_key,
                 "enabled": True
             }
