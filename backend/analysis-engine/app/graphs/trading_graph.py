@@ -401,12 +401,8 @@ class TradingGraph:
             # 执行图分析
             logger.info("🚀 开始执行图分析...")
 
-            # 启动后台进度监控
-            monitor_task = None
-            if progress_callback:
-                monitor_task = asyncio.create_task(
-                    self._background_progress_monitor(progress_callback)
-                )
+            # 不再使用假的后台进度监控
+            # 改为基于真实节点执行的进度跟踪
 
             try:
                 # 执行原始图分析
@@ -414,18 +410,52 @@ class TradingGraph:
                 logger.info(f"🔍 初始状态: symbol={initial_state['symbol']}, current_step={initial_state['current_step']}")
                 logger.info(f"🔍 图是否已编译: {self.compiled_graph is not None}")
 
-                # 使用流式执行来跟踪每个步骤
+                # 使用流式执行来跟踪每个步骤，并提供真实进度
                 logger.info("🔍 开始流式执行图...")
                 step_count = 0
+
+                # 定义节点名称到友好名称的映射
+                node_display_names = {
+                    "market_analyst": "市场分析师",
+                    "fundamentals_analyst": "基本面分析师",
+                    "news_analyst": "新闻分析师",
+                    "social_analyst": "社交媒体分析师",
+                    "bull_researcher": "看涨研究员",
+                    "bear_researcher": "看跌研究员",
+                    "research_manager": "研究经理",
+                    "trader": "交易员",
+                    "risk_analyst": "风险分析师",
+                    "risk_manager": "风险管理经理"
+                }
+
+                # 计算总步骤数（基于实际配置的分析师）
+                selected_analysts = self.config.get("selected_analysts", ["market", "fundamentals"])
+                total_analyst_steps = len(selected_analysts)
+                total_steps = total_analyst_steps + 6  # 分析师 + 研究员(3) + 交易员(1) + 风险管理(2)
 
                 async for step in self.compiled_graph.astream(initial_state, config=config):
                     step_count += 1
                     logger.info(f"🔍 执行步骤 {step_count}: {step}")
 
-                    # 检查步骤内容
+                    # 检查步骤内容并提供真实进度
                     if isinstance(step, dict):
                         for node_name, node_result in step.items():
                             logger.info(f"🔍 节点 {node_name} 执行结果: {type(node_result)}")
+
+                            # 计算真实进度百分比
+                            progress_percent = min(15 + int((step_count / total_steps) * 75), 90)
+
+                            # 获取友好的显示名称
+                            display_name = node_display_names.get(node_name, node_name)
+
+                            # 发送真实的进度更新
+                            if progress_callback:
+                                await progress_callback(
+                                    display_name,
+                                    progress_percent,
+                                    f"正在执行 {display_name} 分析"
+                                )
+
                             if isinstance(node_result, dict) and 'current_step' in node_result:
                                 logger.info(f"🔍 当前步骤更新为: {node_result['current_step']}")
 
@@ -438,9 +468,7 @@ class TradingGraph:
                 logger.info(f"🔍 完成的步骤: {final_state.get('completed_steps', [])}")
                 logger.info(f"🔍 错误列表: {final_state.get('errors', [])}")
 
-                # 取消监控任务
-                if monitor_task:
-                    monitor_task.cancel()
+                # 不再需要取消监控任务
 
             except Exception as e:
                 logger.error(f"❌ 图执行异常: {e}")
@@ -448,9 +476,7 @@ class TradingGraph:
                 import traceback
                 logger.error(f"❌ 异常堆栈: {traceback.format_exc()}")
 
-                # 取消监控任务
-                if monitor_task:
-                    monitor_task.cancel()
+                # 不再需要取消监控任务
                 raise
 
             logger.info(f"🔍 图执行完成")
@@ -489,130 +515,11 @@ class TradingGraph:
                 await progress_callback("分析失败", 0, f"分析失败: {str(e)}")
             raise
 
-    async def _background_progress_monitor(self, progress_callback):
-        """后台进度监控 - 根据用户选择的分析师动态生成"""
-        try:
-            # 获取用户选择的分析师
-            selected_analysts = self.config.get("selected_analysts", ["market", "fundamentals", "news", "social"])
-            logger.info(f"🔧 进度监控 - 选择的分析师: {selected_analysts}")
+    # 已删除假的进度监控方法
+    # 现在使用基于真实节点执行的进度跟踪
+    # 已删除假的活动日志方法
+    # 现在使用真实的节点执行日志
 
-            # 定义所有可能的分析师步骤
-            all_analyst_steps = {
-                "market": (25, "市场分析师", "分析市场趋势和技术指标"),
-                "fundamentals": (35, "基本面分析师", "分析财务数据和公司基本面"),
-                "news": (45, "新闻分析师", "分析相关新闻和市场情绪"),
-                "social": (55, "社交媒体分析师", "分析社交媒体情绪")
-            }
-
-            # 根据用户选择构建步骤列表
-            analyst_steps = []
-            progress_start = 25
-            progress_increment = 10
-
-            for i, analyst_type in enumerate(selected_analysts):
-                if analyst_type in all_analyst_steps:
-                    progress = progress_start + (i * progress_increment)
-                    _, name, description = all_analyst_steps[analyst_type]
-                    analyst_steps.append((progress, name, description))
-                    logger.info(f"🔧 添加分析师步骤: {progress}% - {name}")
-
-            # 添加固定的后续步骤（研究员、交易员、风险管理）
-            next_progress = progress_start + (len(selected_analysts) * progress_increment)
-            fixed_steps = [
-                (next_progress + 10, "看涨研究员", "提出看涨观点和论据"),
-                (next_progress + 15, "看跌研究员", "提出看跌观点和论据"),
-                (next_progress + 20, "研究经理", "协调研究团队并做出决策"),
-                (next_progress + 25, "交易员", "制定具体的交易策略"),
-                (next_progress + 30, "风险分析师", "评估投资风险"),
-                (90, "风险管理经理", "最终风险评估和投资决策")
-            ]
-
-            # 合并所有步骤
-            steps = analyst_steps + fixed_steps
-            logger.info(f"🔧 总进度步骤: {len(steps)}个，包含{len(analyst_steps)}个分析师步骤")
-
-            for progress, agent_name, description in steps:
-                await asyncio.sleep(3)  # 等待3秒
-
-                logger.info(f"🔄 [{progress}%] 执行: {agent_name}")
-                logger.info(f"📋 任务: {description}")
-
-                # 记录API调用
-                await self._log_agent_activities(agent_name)
-
-                if progress_callback:
-                    await progress_callback(agent_name, progress, description)
-
-                # 强制刷新日志
-                import sys
-                sys.stdout.flush()
-                sys.stderr.flush()
-
-        except asyncio.CancelledError:
-            logger.info("📊 后台监控任务被取消")
-        except Exception as e:
-            logger.error(f"❌ 后台监控失败: {e}")
-
-    async def _log_agent_activities(self, agent_name: str):
-        """记录智能体活动"""
-        activities = {
-            "市场分析师": [
-                "📡 获取股票历史数据",
-                "📊 计算技术指标",
-                "🤖 生成市场分析报告"
-            ],
-            "基本面分析师": [
-                "📡 获取财务报表数据",
-                "📊 计算财务比率",
-                "🤖 生成基本面分析报告"
-            ],
-            "新闻分析师": [
-                "📡 获取相关新闻数据",
-                "📊 分析新闻情绪",
-                "🤖 生成新闻分析报告"
-            ],
-            "社交媒体分析师": [
-                "📡 获取社交媒体数据",
-                "📊 分析社交情绪",
-                "🤖 生成社交媒体分析报告"
-            ],
-            "看涨研究员": [
-                "📊 整合看涨因素",
-                "💭 构建看涨论据",
-                "🤖 生成看涨研究报告"
-            ],
-            "看跌研究员": [
-                "📊 整合看跌因素",
-                "💭 构建看跌论据",
-                "🤖 生成看跌研究报告"
-            ],
-            "研究经理": [
-                "⚖️ 协调研究团队",
-                "📊 综合分析结果",
-                "🤖 生成综合研究报告"
-            ],
-            "交易员": [
-                "💼 制定交易策略",
-                "📈 确定买卖时机",
-                "🤖 生成交易计划"
-            ],
-            "风险分析师": [
-                "⚠️ 评估投资风险",
-                "📊 计算风险指标",
-                "🤖 生成风险评估报告"
-            ],
-            "风险管理经理": [
-                "🎯 整合风险评估",
-                "⚖️ 平衡风险收益",
-                "🤖 生成最终投资建议"
-            ]
-        }
-
-        agent_activities = activities.get(agent_name, [f"🔄 执行{agent_name}相关任务"])
-
-        for activity in agent_activities:
-            logger.info(f"   {activity}")
-            await asyncio.sleep(0.2)  # 短暂延迟
 
 
     
