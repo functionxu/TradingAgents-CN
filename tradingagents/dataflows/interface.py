@@ -1302,9 +1302,14 @@ def get_china_stock_data_unified(
     start_time = time.time()
 
     try:
-        from .data_source_manager import get_china_stock_data_unified
+        # 修复循环导入问题：直接使用数据源管理器
+        from .data_source_manager import get_data_source_manager
 
-        result = get_china_stock_data_unified(ticker, start_date, end_date)
+        logger.info(f"🔄 [统一接口] 获取数据源管理器实例")
+        manager = get_data_source_manager()
+
+        logger.info(f"🔄 [统一接口] 调用数据源管理器获取股票数据")
+        result = manager.get_stock_data(ticker, start_date, end_date)
 
         # 记录详细的输出结果
         duration = time.time() - start_time

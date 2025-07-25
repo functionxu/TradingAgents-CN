@@ -58,19 +58,24 @@ class DataSourceManager:
     
     def _check_available_sources(self) -> List[ChinaDataSource]:
         """检查可用的数据源"""
+        logger.info(f"🔍 [数据源检查] 开始检查可用数据源...")
         available = []
-        
+
         # 检查Tushare
+        logger.info(f"🔍 [数据源检查] 检查Tushare可用性...")
         try:
             import tushare as ts
             token = os.getenv('TUSHARE_TOKEN')
+            logger.info(f"🔍 [Tushare检查] TUSHARE_TOKEN存在: {bool(token)}")
             if token:
                 available.append(ChinaDataSource.TUSHARE)
                 logger.info("✅ Tushare数据源可用")
             else:
                 logger.warning("⚠️ Tushare数据源不可用: 未设置TUSHARE_TOKEN")
-        except ImportError:
-            logger.warning("⚠️ Tushare数据源不可用: 库未安装")
+        except ImportError as e:
+            logger.warning(f"⚠️ Tushare数据源不可用: 库未安装 - {str(e)}")
+        except Exception as e:
+            logger.error(f"❌ Tushare数据源检查异常: {str(e)}")
         
         # 检查AKShare
         try:
@@ -627,7 +632,15 @@ def get_data_source_manager() -> DataSourceManager:
     """获取全局数据源管理器实例"""
     global _data_source_manager
     if _data_source_manager is None:
-        _data_source_manager = DataSourceManager()
+        logger.info(f"🔄 [数据源管理器] 首次初始化数据源管理器")
+        try:
+            _data_source_manager = DataSourceManager()
+            logger.info(f"✅ [数据源管理器] 初始化成功")
+        except Exception as e:
+            logger.error(f"❌ [数据源管理器] 初始化失败: {str(e)}")
+            raise
+    else:
+        logger.debug(f"🔄 [数据源管理器] 使用已存在的管理器实例")
     return _data_source_manager
 
 
