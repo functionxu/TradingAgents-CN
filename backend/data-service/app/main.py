@@ -663,33 +663,55 @@ async def get_stock_data(
     redis_client: Optional[redis.Redis] = Depends(get_redis)
 ):
     """获取股票历史数据"""
+    import time
+    request_start_time = time.time()
+
     try:
-        # 提取分析ID并设置到上下文
+        # 步骤1: 提取分析ID并设置到上下文
+        step1_start = time.time()
         analysis_id = get_analysis_id_from_headers(fastapi_request)
         if analysis_id:
             set_analysis_id(analysis_id)
             analysis_logger = AnalysisLoggerAdapter(logger, analysis_id)
-            analysis_logger.info(f"📈 [股票数据] 开始获取: {request.symbol} ({request.start_date} - {request.end_date})")
+            analysis_logger.info(f"📈 [步骤1] 开始获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
             current_logger = analysis_logger
         else:
-            logger.info(f"📈 [股票数据] 开始获取: {request.symbol} ({request.start_date} - {request.end_date})")
+            logger.info(f"📈 [步骤1] 开始获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
             current_logger = logger
+
+        step1_duration = time.time() - step1_start
+        current_logger.info(f"⏱️ [步骤1完成] 分析ID设置耗时: {step1_duration:.3f}秒")
 
         current_logger.info(f"📊 [请求参数] symbol={request.symbol}, start_date={request.start_date}, end_date={request.end_date}")
         current_logger.info(f"📊 [请求参数] data_source={request.data_source}")
 
-        # 检查缓存
+        # 步骤2: 检查缓存
+        step2_start = time.time()
+        current_logger.info(f"🔍 [步骤2] 开始检查缓存")
+
         cache_key = f"stock_data:{request.symbol}:{request.start_date}:{request.end_date}"
         current_logger.info(f"🔍 [缓存检查] Redis可用: {redis_client is not None}")
+        current_logger.info(f"🔍 [缓存检查] 缓存键: {cache_key}")
 
         if redis_client:
-            current_logger.info(f"🔍 [缓存检查] 查询Redis缓存键: {cache_key}")
+            current_logger.info(f"🔍 [缓存查询] 开始查询Redis...")
+            cache_query_start = time.time()
             cached_data = await redis_client.get(cache_key)
+            cache_query_duration = time.time() - cache_query_start
+            current_logger.info(f"⏱️ [缓存查询] Redis查询耗时: {cache_query_duration:.3f}秒")
+
             if cached_data:
                 current_logger.info(f"💾 [缓存命中] 从Redis获取股票数据: {request.symbol}")
                 import json
+                parse_start = time.time()
                 cached_result = json.loads(cached_data)
+                parse_duration = time.time() - parse_start
+                current_logger.info(f"⏱️ [缓存解析] JSON解析耗时: {parse_duration:.3f}秒")
                 current_logger.info(f"✅ [缓存返回] 数据点数量: {len(cached_result.get('close_prices', []))}")
+
+                step2_duration = time.time() - step2_start
+                current_logger.info(f"⏱️ [步骤2完成] 缓存检查总耗时: {step2_duration:.3f}秒")
+
                 return APIResponse(
                     success=True,
                     message="获取股票数据成功（缓存）",
@@ -699,8 +721,14 @@ async def get_stock_data(
                 current_logger.info(f"🔍 [缓存未命中] Redis中无数据: {cache_key}")
         else:
             current_logger.warning(f"⚠️ [缓存跳过] Redis不可用")
+
+        step2_duration = time.time() - step2_start
+        current_logger.info(f"⏱️ [步骤2完成] 缓存检查耗时: {step2_duration:.3f}秒")
         
-        # 从数据源获取（添加超时处理）
+        # 步骤3: 从数据源获取（添加超时处理）
+        step3_start = time.time()
+        current_logger.info(f"🌐 [步骤3] 开始从数据源获取数据")
+
         import asyncio
         import os
 
@@ -713,35 +741,54 @@ async def get_stock_data(
 
         # 创建一个包装函数来添加详细日志
         def get_data_with_logging():
-            current_logger.info(f"🔄 [数据源执行] 进入get_china_stock_data_unified函数")
+            current_logger.info(f"🔄 [步骤3.1] 进入get_china_stock_data_unified函数")
+            func_start = time.time()
 
             try:
+                current_logger.info(f"🔄 [步骤3.2] 开始调用get_china_stock_data_unified")
+                call_start = time.time()
+
                 result = get_china_stock_data_unified(
                     request.symbol,
                     request.start_date,
                     request.end_date
                 )
+
+                call_duration = time.time() - call_start
+                current_logger.info(f"⏱️ [步骤3.2完成] get_china_stock_data_unified调用耗时: {call_duration:.3f}秒")
                 current_logger.info(f"✅ [数据源执行] get_china_stock_data_unified返回成功")
                 current_logger.info(f"📊 [数据源结果] 结果类型: {type(result)}, 长度: {len(str(result)) if result else 0}")
+
+                func_duration = time.time() - func_start
+                current_logger.info(f"⏱️ [步骤3.1完成] 包装函数总耗时: {func_duration:.3f}秒")
                 return result
             except Exception as e:
+                func_duration = time.time() - func_start
                 current_logger.error(f"❌ [数据源执行] get_china_stock_data_unified异常: {type(e).__name__}: {str(e)}")
+                current_logger.error(f"⏱️ [异常耗时] 函数执行到异常耗时: {func_duration:.3f}秒")
                 raise
 
         try:
-            import time
-            start_time = time.time()
-            current_logger.info(f"⏰ [超时开始] 开始计时，超时限制: {timeout_seconds}秒")
+            datasource_start_time = time.time()
+            current_logger.info(f"⏰ [步骤3.3] 开始超时控制，限制: {timeout_seconds}秒")
 
             # 使用asyncio.wait_for添加超时控制
+            current_logger.info(f"🔄 [步骤3.4] 创建异步线程调用")
+            thread_start = time.time()
+
             stock_data = await asyncio.wait_for(
                 asyncio.to_thread(get_data_with_logging),
                 timeout=timeout_seconds
             )
 
-            call_duration = time.time() - start_time
-            current_logger.info(f"⏱️ [数据源响应] 调用耗时: {call_duration:.2f}秒")
+            thread_duration = time.time() - thread_start
+            call_duration = time.time() - datasource_start_time
+            current_logger.info(f"⏱️ [步骤3.4完成] 异步线程耗时: {thread_duration:.3f}秒")
+            current_logger.info(f"⏱️ [数据源响应] 总调用耗时: {call_duration:.3f}秒")
             current_logger.info(f"📊 [数据源响应] 数据类型: {type(stock_data)}, 长度: {len(str(stock_data)) if stock_data else 0}")
+
+            step3_duration = time.time() - step3_start
+            current_logger.info(f"⏱️ [步骤3完成] 数据源获取总耗时: {step3_duration:.3f}秒")
 
         except asyncio.TimeoutError:
             call_duration = time.time() - start_time
@@ -764,8 +811,9 @@ async def get_stock_data(
             current_logger.error(f"❌ [数据内容] {stock_data}")
             raise HTTPException(status_code=404, detail=f"未找到股票 {request.symbol} 的数据")
 
-        # 解析数据为结构化格式
-        current_logger.info(f"🔄 [数据解析] 开始解析为结构化格式: {request.symbol}")
+        # 步骤4: 解析数据为结构化格式
+        step4_start = time.time()
+        current_logger.info(f"🔄 [步骤4] 开始解析数据为结构化格式: {request.symbol}")
         parse_start_time = time.time()
 
         parsed_data = _parse_stock_data_to_structured_format(
@@ -773,7 +821,9 @@ async def get_stock_data(
         )
 
         parse_duration = time.time() - parse_start_time
-        current_logger.info(f"⏱️ [数据解析] 解析耗时: {parse_duration:.2f}秒")
+        step4_duration = time.time() - step4_start
+        current_logger.info(f"⏱️ [数据解析] 解析耗时: {parse_duration:.3f}秒")
+        current_logger.info(f"⏱️ [步骤4完成] 数据解析总耗时: {step4_duration:.3f}秒")
         current_logger.info(f"🔍 [解析结果] 数据类型: {type(parsed_data)}")
         current_logger.info(f"🔍 [解析结果] 数据键: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'Not a dict'}")
         if isinstance(parsed_data, dict):
@@ -784,21 +834,39 @@ async def get_stock_data(
             current_logger.info(f"✅ [解析成功] 共解析出 {close_count} 个数据点")
         current_logger.info(f"🔍 [解析预览] 数据内容: {str(parsed_data)[:300]}...")
 
-        # 缓存数据
+        # 步骤5: 缓存数据
+        step5_start = time.time()
+        current_logger.info(f"💾 [步骤5] 开始缓存数据")
+
         if redis_client:
             current_logger.info(f"💾 [缓存保存] 开始保存到Redis: {cache_key}")
             import json
+
+            json_start = time.time()
             cache_data = json.dumps(parsed_data, ensure_ascii=False)
+            json_duration = time.time() - json_start
+            current_logger.info(f"⏱️ [JSON序列化] 耗时: {json_duration:.3f}秒")
+
+            redis_start = time.time()
             await redis_client.setex(
                 cache_key,
                 1800,  # 30分钟缓存
                 cache_data
             )
+            redis_duration = time.time() - redis_start
+            current_logger.info(f"⏱️ [Redis保存] 耗时: {redis_duration:.3f}秒")
             current_logger.info(f"✅ [缓存保存] 成功保存到Redis: {cache_key} (TTL: 1800秒)")
         else:
             current_logger.warning(f"⚠️ [缓存跳过] Redis不可用，无法缓存: {request.symbol}")
 
+        step5_duration = time.time() - step5_start
+        current_logger.info(f"⏱️ [步骤5完成] 缓存操作总耗时: {step5_duration:.3f}秒")
+
+        # 总耗时统计
+        total_duration = time.time() - request_start_time
         current_logger.info(f"🎉 [请求完成] 成功获取股票数据: {request.symbol}")
+        current_logger.info(f"⏱️ [总耗时] 整个请求处理耗时: {total_duration:.3f}秒")
+
         return APIResponse(
             success=True,
             message="获取股票数据成功",
