@@ -51,14 +51,31 @@ class DataClient(BaseServiceClient):
             
             self.logger.debug(f"Getting stock data: {symbol}")
 
-            # 数据服务使用POST方法和不同的端点
+            # 确保start_date不为空（StockDataRequest模型要求）
+            if not start_date:
+                import os
+                from datetime import datetime, timedelta
+
+                # 从配置文件读取默认历史天数，默认30天
+                default_days = int(os.getenv("DEFAULT_HISTORY_DAYS", "30"))
+                start_date = (datetime.now() - timedelta(days=default_days)).strftime("%Y-%m-%d")
+                self.logger.info(f"🔧 使用默认历史数据天数: {default_days}天，开始日期: {start_date}")
+
+            if not end_date:
+                from datetime import datetime
+                end_date = datetime.now().strftime("%Y-%m-%d")
+
+            # 数据服务使用POST方法，匹配StockDataRequest模型
             data = {
                 "symbol": symbol,
-                "start_date": start_date,
-                "end_date": end_date,
-                "period": period,
-                **kwargs
+                "start_date": start_date,  # 必需字段，不能为null
+                "end_date": end_date,      # 必需字段
+                # 移除period字段，StockDataRequest模型中没有这个字段
             }
+
+            # 添加可选的data_source字段
+            if "data_source" in kwargs:
+                data["data_source"] = kwargs["data_source"]
 
             response = await self.post("/api/stock/data", data)
 
