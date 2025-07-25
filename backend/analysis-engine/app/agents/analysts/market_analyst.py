@@ -247,9 +247,6 @@ class MarketAnalyst(BaseAgent):
 
             return content
 
-### 投资建议
-基于当前技术分析和市场情绪，建议: 谨慎持有
-"""
         except Exception as e:
             self.logger.error(f"❌ AI分析生成失败: {e}")
             return f"AI分析生成失败: {str(e)}"

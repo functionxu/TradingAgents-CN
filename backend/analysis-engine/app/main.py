@@ -34,16 +34,79 @@ from backend.shared.clients.base import BaseServiceClient
 from .analysis.independent_analyzer import IndependentAnalyzer
 from .analysis.config import ANALYSIS_CONFIG
 
+# 导入智能体系统
+from .graphs.agent_nodes import AgentNodes
+
 # 全局变量
 logger = get_service_logger("analysis-engine")
 redis_client: Optional[redis.Redis] = None
 data_service_client: Optional[BaseServiceClient] = None
+agent_nodes: Optional[AgentNodes] = None
 
+async def initialize_agents():
+    """初始化智能体系统"""
+    global agent_nodes
+
+    try:
+        logger.info("🤖 初始化智能体系统...")
+
+        # 创建智能体节点管理器
+        # TODO: 集成LLM和数据服务客户端
+        agent_nodes = AgentNodes(
+            llm_client=None,  # 暂时为None，后续集成LLM服务
+            data_client=data_service_client  # 使用已初始化的数据服务客户端
+        )
+
+        # 初始化所有智能体
+        await agent_nodes.initialize()
+
+        # 显示智能体状态
+        status = agent_nodes.get_agent_status()
+        logger.info("📊 智能体系统状态:")
+        logger.info(f"   - 系统已初始化: {status['initialized']}")
+
+        # 显示各个智能体状态
+        agents_status = status['agents']
+        logger.info("📋 智能体列表:")
+
+        # 分析师团队
+        logger.info("   📈 分析师团队:")
+        logger.info(f"     - 市场分析师: {'✅' if agents_status['market_analyst'] else '❌'}")
+        logger.info(f"     - 基本面分析师: {'✅' if agents_status['fundamentals_analyst'] else '❌'}")
+        logger.info(f"     - 新闻分析师: {'✅' if agents_status['news_analyst'] else '❌'}")
+        logger.info(f"     - 社交媒体分析师: {'✅' if agents_status['social_analyst'] else '❌'}")
+
+        # 研究员团队
+        logger.info("   🔬 研究员团队:")
+        logger.info(f"     - 看涨研究员: {'✅' if agents_status['bull_researcher'] else '❌'}")
+        logger.info(f"     - 看跌研究员: {'✅' if agents_status['bear_researcher'] else '❌'}")
+        logger.info(f"     - 研究经理: {'✅' if agents_status['research_manager'] else '❌'}")
+
+        # 交易和管理团队
+        logger.info("   💼 交易和管理团队:")
+        logger.info(f"     - 交易员: {'✅' if agents_status['trader'] else '❌'}")
+        logger.info(f"     - 风险管理经理: {'✅' if agents_status['risk_manager'] else '❌'}")
+
+        # 统计信息
+        total_agents = len(agents_status)
+        initialized_agents = sum(1 for status in agents_status.values() if status)
+        logger.info(f"📊 智能体统计: {initialized_agents}/{total_agents} 已初始化")
+
+        if initialized_agents == total_agents:
+            logger.info("✅ 所有智能体已成功初始化并准备就绪")
+        else:
+            logger.warning(f"⚠️ {total_agents - initialized_agents} 个智能体初始化失败")
+
+    except Exception as e:
+        logger.error(f"❌ 智能体系统初始化失败: {e}")
+        import traceback
+        logger.error(f"❌ 错误详情: {traceback.format_exc()}")
+        # 不抛出异常，让服务继续启动，但智能体功能不可用
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global redis_client, data_service_client
+    global redis_client, data_service_client, agent_nodes
     
     # 启动时初始化
     logger.info("🚀 Analysis Engine 启动中...")
@@ -67,9 +130,12 @@ async def lifespan(app: FastAPI):
             logger.warning("⚠️ Data Service 连接失败")
     except Exception as e:
         logger.warning(f"⚠️ Data Service 初始化失败: {e}")
-    
+
+    # 初始化智能体系统
+    await initialize_agents()
+
     logger.info("✅ Analysis Engine 启动完成")
-    
+
     yield
     
     # 关闭时清理
@@ -153,6 +219,97 @@ async def health_check():
         dependencies=dependencies
     )
 
+@app.get("/api/agents/status", response_model=APIResponse)
+async def get_agents_status():
+    """获取智能体状态"""
+    try:
+        if not agent_nodes:
+            return APIResponse(
+                success=False,
+                message="智能体系统未初始化",
+                data={"initialized": False}
+            )
+
+        status = agent_nodes.get_agent_status()
+
+        # 格式化状态信息
+        agents_info = []
+        agents_status = status['agents']
+
+        # 分析师团队
+        analysts = [
+            ("market_analyst", "市场分析师", "📈"),
+            ("fundamentals_analyst", "基本面分析师", "📊"),
+            ("news_analyst", "新闻分析师", "📰"),
+            ("social_analyst", "社交媒体分析师", "💬")
+        ]
+
+        for key, name, icon in analysts:
+            agents_info.append({
+                "key": key,
+                "name": name,
+                "icon": icon,
+                "category": "分析师团队",
+                "status": "ready" if agents_status[key] else "error",
+                "description": f"{name}负责相关数据分析"
+            })
+
+        # 研究员团队
+        researchers = [
+            ("bull_researcher", "看涨研究员", "🐂"),
+            ("bear_researcher", "看跌研究员", "🐻"),
+            ("research_manager", "研究经理", "👔")
+        ]
+
+        for key, name, icon in researchers:
+            agents_info.append({
+                "key": key,
+                "name": name,
+                "icon": icon,
+                "category": "研究员团队",
+                "status": "ready" if agents_status[key] else "error",
+                "description": f"{name}负责投资研究决策"
+            })
+
+        # 交易和管理团队
+        traders = [
+            ("trader", "交易员", "💼"),
+            ("risk_manager", "风险管理经理", "⚖️")
+        ]
+
+        for key, name, icon in traders:
+            agents_info.append({
+                "key": key,
+                "name": name,
+                "icon": icon,
+                "category": "交易和管理团队",
+                "status": "ready" if agents_status[key] else "error",
+                "description": f"{name}负责交易执行和风险控制"
+            })
+
+        # 统计信息
+        total_agents = len(agents_status)
+        ready_agents = sum(1 for status in agents_status.values() if status)
+
+        return APIResponse(
+            success=True,
+            message=f"智能体状态查询成功 ({ready_agents}/{total_agents} 就绪)",
+            data={
+                "initialized": status['initialized'],
+                "total_agents": total_agents,
+                "ready_agents": ready_agents,
+                "agents": agents_info,
+                "system_status": "ready" if ready_agents == total_agents else "partial" if ready_agents > 0 else "error"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"❌ 获取智能体状态失败: {e}")
+        return APIResponse(
+            success=False,
+            message=f"获取智能体状态失败: {str(e)}",
+            data={"initialized": False}
+        )
 
 async def update_analysis_progress(
     analysis_id: str,

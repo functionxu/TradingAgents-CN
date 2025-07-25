@@ -113,12 +113,23 @@ class BearResearcher(BaseAgent):
     async def _integrate_analysis_data(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """整合其他分析师的数据"""
         try:
+            if not context:
+                self.logger.warning("⚠️ 上下文数据为空")
+                return {}
+
             integrated_data = {
-                "market_analysis": context.get("market_report", {}),
+                "market_analysis": context.get("market_report") or context.get("technical_report", {}),
                 "fundamentals_analysis": context.get("fundamentals_report", {}),
                 "news_analysis": context.get("news_report", {}),
                 "social_analysis": context.get("social_report", {})
             }
+
+            # 检查是否有有效数据
+            valid_data = {k: v for k, v in integrated_data.items() if v}
+            if not valid_data:
+                self.logger.warning("⚠️ 没有可用的分析数据")
+            else:
+                self.logger.info(f"✅ 成功整合 {len(valid_data)} 类分析数据")
 
             return integrated_data
         except Exception as e:
@@ -129,6 +140,11 @@ class BearResearcher(BaseAgent):
         """识别看跌因素"""
         try:
             bear_factors = []
+
+            # 检查输入数据
+            if not analysis_data:
+                self.logger.warning("⚠️ 分析数据为空，无法识别看跌因素")
+                return bear_factors
 
             # 从市场分析中提取看跌因素
             market_data = analysis_data.get("market_analysis", {})

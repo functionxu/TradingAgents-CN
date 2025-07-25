@@ -126,12 +126,21 @@ class TradingGraph:
             # 获取所有边
             edges = []
             if hasattr(workflow, 'edges'):
-                for source, targets in workflow.edges.items():
-                    if isinstance(targets, list):
-                        for target in targets:
-                            edges.append(f"{source} -> {target}")
+                try:
+                    if hasattr(workflow.edges, 'items'):
+                        # 如果是字典类型
+                        for source, targets in workflow.edges.items():
+                            if isinstance(targets, list):
+                                for target in targets:
+                                    edges.append(f"{source} -> {target}")
+                            else:
+                                edges.append(f"{source} -> {targets}")
                     else:
-                        edges.append(f"{source} -> {targets}")
+                        # 如果是其他类型（如set）
+                        edges = [str(edge) for edge in workflow.edges]
+                except Exception as e:
+                    logger.warning(f"⚠️ 无法解析边信息: {e}")
+                    edges = ["无法解析边信息"]
 
             logger.info(f"🔍 图中的边: {edges}")
 
