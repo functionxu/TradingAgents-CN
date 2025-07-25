@@ -47,15 +47,20 @@ from backend.shared.models.data import (
     NewsItem, FundamentalData, DataSourceStatus
 )
 from backend.shared.models.analysis import APIResponse, HealthCheck
-from backend.shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
-from backend.shared.utils.config import get_service_config
+# 添加共享模块路径
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
+from shared.utils.config import get_service_config
 
 # 导入国际化模块
-from backend.shared.i18n import get_i18n_manager, _, SupportedLanguage
-from backend.shared.i18n.middleware import I18nMiddleware, i18n_response
-from backend.shared.i18n.utils import localize_stock_data, get_supported_languages
-from backend.shared.i18n.logger import get_i18n_logger
-from backend.shared.i18n.debug_middleware import (
+from shared.i18n import get_i18n_manager, _, SupportedLanguage
+from shared.i18n.middleware import I18nMiddleware, i18n_response
+from shared.i18n.utils import localize_stock_data, get_supported_languages
+from shared.i18n.logger import get_i18n_logger
+from shared.i18n.debug_middleware import (
     APIDebugMiddleware, PerformanceMonitorMiddleware, ValidationDebugMiddleware
 )
 
@@ -71,7 +76,7 @@ from tradingagents.dataflows.interface import (
 )
 
 # 导入数据库访问层
-from backend.shared.database.mongodb import get_db_manager, get_stock_repository
+from shared.database.mongodb import get_db_manager, get_stock_repository
 
 
 def _parse_stock_data_to_structured_format(stock_data: str, symbol: str, start_date: str, end_date: str) -> dict:

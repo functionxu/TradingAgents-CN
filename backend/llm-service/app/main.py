@@ -29,7 +29,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 导入分析ID相关工具
-from backend.shared.utils.logger import set_analysis_id, AnalysisLoggerAdapter
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.utils.logger import set_analysis_id, AnalysisLoggerAdapter
 
 # 创建FastAPI应用
 app = FastAPI(

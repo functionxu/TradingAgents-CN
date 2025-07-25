@@ -21,16 +21,22 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any
 
+# 添加共享模块路径
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
 # 导入共享模块
-from backend.shared.models.analysis import (
+from shared.models.analysis import (
     AnalysisProgress, AnalysisResult,
     AnalysisStatus, APIResponse, HealthCheck
 )
+from shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
+
 # 导入本地模型
 from .models.requests import AnalysisRequest
-from backend.shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
-from backend.shared.utils.config import get_service_config
-from backend.shared.clients.base import BaseServiceClient
+from shared.utils.config import get_service_config
+from shared.clients.base import BaseServiceClient
 
 # 导入独立的分析逻辑 (不直接依赖tradingagents)
 from .analysis.independent_analyzer import IndependentAnalyzer
@@ -40,8 +46,8 @@ from .analysis.config import ANALYSIS_CONFIG
 from .graphs.agent_nodes import AgentNodes
 
 # 导入共享客户端
-from backend.shared.clients.data_client import DataClient
-from backend.shared.clients.llm_client import LLMClient
+from shared.clients.data_client import DataClient
+from shared.clients.llm_client import LLMClient
 
 # 全局变量
 logger = get_service_logger("analysis-engine")
