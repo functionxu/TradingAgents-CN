@@ -46,13 +46,20 @@ class TradingGraph:
 
     def update_config(self, request_config: Dict[str, Any]):
         """根据请求更新配置"""
+        logger.info(f"🔧 update_config被调用，request_config: {request_config}")
+
         if not request_config:
+            logger.warning("🔧 request_config为空，跳过配置更新")
             return
 
         # 更新分析师选择
+        logger.info(f"🔧 检查analysts键: {'analysts' in request_config}")
         if "analysts" in request_config:
+            logger.info(f"🔧 找到analysts键，值为: {request_config['analysts']}")
             self.config["selected_analysts"] = request_config["analysts"]
             logger.info(f"🔧 更新分析师选择: {request_config['analysts']}")
+        else:
+            logger.warning(f"🔧 request_config中没有analysts键，可用键: {list(request_config.keys())}")
 
         # 更新研究深度
         if "research_depth" in request_config:
@@ -483,21 +490,46 @@ class TradingGraph:
             raise
 
     async def _background_progress_monitor(self, progress_callback):
-        """后台进度监控 - 简化版本"""
+        """后台进度监控 - 根据用户选择的分析师动态生成"""
         try:
-            # 定义进度步骤
-            steps = [
-                (25, "市场分析师", "分析市场趋势和技术指标"),
-                (35, "基本面分析师", "分析财务数据和公司基本面"),
-                (45, "新闻分析师", "分析相关新闻和市场情绪"),
-                (55, "社交媒体分析师", "分析社交媒体情绪"),
-                (65, "看涨研究员", "提出看涨观点和论据"),
-                (70, "看跌研究员", "提出看跌观点和论据"),
-                (75, "研究经理", "协调研究团队并做出决策"),
-                (80, "交易员", "制定具体的交易策略"),
-                (85, "风险分析师", "评估投资风险"),
+            # 获取用户选择的分析师
+            selected_analysts = self.config.get("selected_analysts", ["market", "fundamentals", "news", "social"])
+            logger.info(f"🔧 进度监控 - 选择的分析师: {selected_analysts}")
+
+            # 定义所有可能的分析师步骤
+            all_analyst_steps = {
+                "market": (25, "市场分析师", "分析市场趋势和技术指标"),
+                "fundamentals": (35, "基本面分析师", "分析财务数据和公司基本面"),
+                "news": (45, "新闻分析师", "分析相关新闻和市场情绪"),
+                "social": (55, "社交媒体分析师", "分析社交媒体情绪")
+            }
+
+            # 根据用户选择构建步骤列表
+            analyst_steps = []
+            progress_start = 25
+            progress_increment = 10
+
+            for i, analyst_type in enumerate(selected_analysts):
+                if analyst_type in all_analyst_steps:
+                    progress = progress_start + (i * progress_increment)
+                    _, name, description = all_analyst_steps[analyst_type]
+                    analyst_steps.append((progress, name, description))
+                    logger.info(f"🔧 添加分析师步骤: {progress}% - {name}")
+
+            # 添加固定的后续步骤（研究员、交易员、风险管理）
+            next_progress = progress_start + (len(selected_analysts) * progress_increment)
+            fixed_steps = [
+                (next_progress + 10, "看涨研究员", "提出看涨观点和论据"),
+                (next_progress + 15, "看跌研究员", "提出看跌观点和论据"),
+                (next_progress + 20, "研究经理", "协调研究团队并做出决策"),
+                (next_progress + 25, "交易员", "制定具体的交易策略"),
+                (next_progress + 30, "风险分析师", "评估投资风险"),
                 (90, "风险管理经理", "最终风险评估和投资决策")
             ]
+
+            # 合并所有步骤
+            steps = analyst_steps + fixed_steps
+            logger.info(f"🔧 总进度步骤: {len(steps)}个，包含{len(analyst_steps)}个分析师步骤")
 
             for progress, agent_name, description in steps:
                 await asyncio.sleep(3)  # 等待3秒
