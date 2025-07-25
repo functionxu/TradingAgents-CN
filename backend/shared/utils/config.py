@@ -156,7 +156,15 @@ def get_config() -> Config:
 def get_service_config(service_name: str) -> Dict[str, Any]:
     """获取特定服务的配置"""
     config = get_config()
-    
+
+    # 服务URL映射
+    service_urls = {
+        'data_service_url': config.get('DATA_SERVICE_URL', 'http://localhost:8002'),
+        'llm_service_url': config.get('LLM_SERVICE_URL', 'http://localhost:8003'),
+        'agent_service_url': config.get('AGENT_SERVICE_URL', 'http://localhost:8004'),
+        'web_service_url': config.get('WEB_SERVICE_URL', 'http://localhost:8000'),
+    }
+
     return {
         'service_name': service_name,
         'host': config.get(f"{service_name.upper()}_HOST", 'localhost'),
@@ -166,4 +174,5 @@ def get_service_config(service_name: str) -> Dict[str, Any]:
         'log_file': config.get('LOG_FILE'),
         'redis_url': config.get('REDIS_URL'),
         'mongodb_url': config.get('MONGODB_URL'),
+        **service_urls  # 添加服务URL配置
     }

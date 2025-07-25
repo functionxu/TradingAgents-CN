@@ -37,11 +37,96 @@ from .analysis.config import ANALYSIS_CONFIG
 # 导入智能体系统
 from .graphs.agent_nodes import AgentNodes
 
+# 导入共享客户端
+from backend.shared.clients.data_client import DataClient
+from backend.shared.clients.llm_client import LLMClient
+
 # 全局变量
 logger = get_service_logger("analysis-engine")
 redis_client: Optional[redis.Redis] = None
 data_service_client: Optional[BaseServiceClient] = None
+data_client: Optional[DataClient] = None
+llm_client: Optional[LLMClient] = None
 agent_nodes: Optional[AgentNodes] = None
+
+class LLMClientAdapter:
+    """LLM客户端适配器，将chat_completion包装成generate方法"""
+
+    def __init__(self, llm_client: LLMClient):
+        self.llm_client = llm_client
+
+    async def generate(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        生成文本的适配器方法
+
+        Args:
+            prompt: 提示词
+            context: 上下文信息
+
+        Returns:
+            生成结果，格式为 {"content": "生成的内容"}
+        """
+        try:
+            # 构建消息
+            messages = [{"role": "user", "content": prompt}]
+
+            # 调用chat_completion
+            response = await self.llm_client.chat_completion(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2000
+            )
+
+            # 提取内容
+            if response and "choices" in response and response["choices"]:
+                content = response["choices"][0].get("message", {}).get("content", "")
+                return {"content": content}
+            else:
+                return {"error": "LLM服务返回空响应"}
+
+        except Exception as e:
+            return {"error": f"LLM生成失败: {str(e)}"}
+
+    async def health_check(self) -> bool:
+        """健康检查"""
+        return await self.llm_client.health_check()
+
+async def initialize_clients():
+    """初始化专用客户端"""
+    global data_client, llm_client
+
+    try:
+        logger.info("🔗 初始化专用客户端...")
+
+        # 获取服务配置
+        config = get_service_config("analysis_engine")
+
+        # 初始化数据客户端
+        data_service_url = config.get('data_service_url', 'http://localhost:8002')
+        data_client = DataClient(base_url=data_service_url)
+
+        # 测试数据服务连接
+        if await data_client.health_check():
+            logger.info("✅ 数据客户端连接成功")
+        else:
+            logger.warning("⚠️ 数据客户端连接失败")
+
+        # 初始化LLM客户端
+        llm_service_url = config.get('llm_service_url', 'http://localhost:8003')
+        llm_client = LLMClient(base_url=llm_service_url)
+
+        # 测试LLM服务连接
+        if await llm_client.health_check():
+            logger.info("✅ LLM客户端连接成功")
+        else:
+            logger.warning("⚠️ LLM客户端连接失败")
+
+        logger.info("✅ 专用客户端初始化完成")
+
+    except Exception as e:
+        logger.error(f"❌ 专用客户端初始化失败: {e}")
+        import traceback
+        logger.error(f"❌ 错误详情: {traceback.format_exc()}")
 
 async def initialize_agents():
     """初始化智能体系统"""
@@ -51,10 +136,16 @@ async def initialize_agents():
         logger.info("🤖 初始化智能体系统...")
 
         # 创建智能体节点管理器
-        # TODO: 集成LLM和数据服务客户端
+        llm_adapter = None
+        if llm_client:
+            llm_adapter = LLMClientAdapter(llm_client)
+            logger.info("✅ LLM客户端适配器创建成功")
+        else:
+            logger.warning("⚠️ LLM客户端未初始化，智能体将无法生成AI分析")
+
         agent_nodes = AgentNodes(
-            llm_client=None,  # 暂时为None，后续集成LLM服务
-            data_client=data_service_client  # 使用已初始化的数据服务客户端
+            llm_client=llm_adapter,  # 使用适配器
+            data_client=data_client  # 使用专用数据客户端
         )
 
         # 初始化所有智能体
@@ -106,7 +197,7 @@ async def initialize_agents():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global redis_client, data_service_client, agent_nodes
+    global redis_client, data_service_client, data_client, llm_client, agent_nodes
     
     # 启动时初始化
     logger.info("🚀 Analysis Engine 启动中...")
@@ -130,6 +221,9 @@ async def lifespan(app: FastAPI):
             logger.warning("⚠️ Data Service 连接失败")
     except Exception as e:
         logger.warning(f"⚠️ Data Service 初始化失败: {e}")
+
+    # 初始化专用客户端
+    await initialize_clients()
 
     # 初始化智能体系统
     await initialize_agents()
