@@ -47,8 +47,13 @@ class TradingGraph:
                 max_risk_rounds=self.config["max_risk_rounds"]
             )
             
-            # 初始化Agent节点
-            self.agent_nodes = AgentNodes()
+            # 初始化Agent节点 - 需要传递LLM和数据客户端
+            # TODO: 从配置或依赖注入获取客户端
+            logger.info("🔧 创建智能体节点管理器...")
+            self.agent_nodes = AgentNodes(
+                llm_client=None,  # 暂时为None，后续需要集成LLM服务
+                data_client=None  # 暂时为None，后续需要集成数据服务
+            )
             await self.agent_nodes.initialize()
             
             # 构建图
@@ -66,37 +71,94 @@ class TradingGraph:
     def _build_graph(self) -> StateGraph:
         """构建交易决策图"""
         logger.info("🏗️ 构建交易决策图...")
-        
+
         # 创建状态图
         workflow = StateGraph(GraphState)
-        
-        # 添加分析师节点
-        self._add_analyst_nodes(workflow)
-        
-        # 添加研究员节点
-        self._add_researcher_nodes(workflow)
-        
-        # 添加风险分析节点
-        self._add_risk_nodes(workflow)
-        
 
-        
+        # 添加一个简单的测试节点来验证图执行
+        workflow.add_node("test_start", self._test_start_node)
+
+        # 添加分析师节点
+        logger.info("🔧 添加分析师节点...")
+        self._add_analyst_nodes(workflow)
+
+        # 添加研究员节点
+        logger.info("🔧 添加研究员节点...")
+        self._add_researcher_nodes(workflow)
+
+        # 添加风险分析节点
+        logger.info("🔧 添加风险分析节点...")
+        self._add_risk_nodes(workflow)
+
+
+
         # 添加边和条件逻辑
+        logger.info("🔧 添加边和条件逻辑...")
         self._add_edges(workflow)
-        
+
+        # 验证图结构
+        self._validate_graph_structure(workflow)
+
         logger.info("✅ 交易决策图构建完成")
         return workflow
-    
+
+    async def _test_start_node(self, state: GraphState) -> GraphState:
+        """测试起始节点 - 验证图执行"""
+        logger.info(f"🧪 测试节点执行: {state['symbol']}")
+        logger.info(f"🧪 当前状态: {state.get('current_step', 'unknown')}")
+
+        # 更新状态
+        state["current_step"] = "test_node_executed"
+        state["completed_steps"] = state.get("completed_steps", []) + ["test_start"]
+
+        logger.info(f"✅ 测试节点完成: {state['symbol']}")
+        return state
+
+    def _validate_graph_structure(self, workflow: StateGraph):
+        """验证图结构"""
+        try:
+            logger.info("🔍 验证图结构...")
+
+            # 获取所有节点
+            nodes = list(workflow.nodes.keys()) if hasattr(workflow, 'nodes') else []
+            logger.info(f"🔍 图中的节点: {nodes}")
+
+            # 获取所有边
+            edges = []
+            if hasattr(workflow, 'edges'):
+                for source, targets in workflow.edges.items():
+                    if isinstance(targets, list):
+                        for target in targets:
+                            edges.append(f"{source} -> {target}")
+                    else:
+                        edges.append(f"{source} -> {targets}")
+
+            logger.info(f"🔍 图中的边: {edges}")
+
+            # 检查起始节点
+            start_edges = [edge for edge in edges if edge.startswith("__start__")]
+            logger.info(f"🔍 起始边: {start_edges}")
+
+            # 检查结束节点
+            end_edges = [edge for edge in edges if edge.endswith("__end__")]
+            logger.info(f"🔍 结束边: {end_edges}")
+
+        except Exception as e:
+            logger.error(f"❌ 图结构验证失败: {e}")
+
     def _add_analyst_nodes(self, workflow: StateGraph):
         """添加分析师节点"""
         selected_analysts = self.config["selected_analysts"]
-        
+        logger.info(f"🔧 选择的分析师: {selected_analysts}")
+
         for analyst_type in selected_analysts:
+            node_name = f"{analyst_type}_analyst"
+            node_func = self.agent_nodes.get_analyst_node(analyst_type)
+            logger.info(f"🔧 添加分析师节点: {node_name}, 函数: {node_func}")
+
             # 添加分析师节点
-            workflow.add_node(
-                f"{analyst_type}_analyst",
-                self.agent_nodes.get_analyst_node(analyst_type)
-            )
+            workflow.add_node(node_name, node_func)
+            logger.info(f"✅ 分析师节点已添加: {node_name}")
 
     
     def _add_researcher_nodes(self, workflow: StateGraph):
@@ -118,11 +180,19 @@ class TradingGraph:
     def _add_edges(self, workflow: StateGraph):
         """添加边和条件逻辑"""
         selected_analysts = self.config["selected_analysts"]
-        
-        # 设置起始点
+        logger.info(f"🔧 配置边连接，选择的分析师: {selected_analysts}")
+
+        # 设置起始点 - 先到测试节点
+        logger.info(f"🔧 设置起始点: START -> test_start")
+        workflow.add_edge(START, "test_start")
+
+        # 测试节点到第一个分析师
         if selected_analysts:
             first_analyst = f"{selected_analysts[0]}_analyst"
-            workflow.add_edge(START, first_analyst)
+            logger.info(f"🔧 测试节点连接: test_start -> {first_analyst}")
+            workflow.add_edge("test_start", first_analyst)
+        else:
+            logger.error("❌ 没有选择的分析师，无法设置起始点")
         
         # 添加分析师之间的直接连接（移除工具节点）
         for i, analyst_type in enumerate(selected_analysts):
@@ -258,13 +328,44 @@ class TradingGraph:
 
             try:
                 # 执行原始图分析
+                logger.info(f"🔍 开始执行 compiled_graph.ainvoke...")
+                logger.info(f"🔍 初始状态: symbol={initial_state['symbol']}, current_step={initial_state['current_step']}")
+                logger.info(f"🔍 图是否已编译: {self.compiled_graph is not None}")
+
+                # 使用流式执行来跟踪每个步骤
+                logger.info("🔍 开始流式执行图...")
+                step_count = 0
+
+                async for step in self.compiled_graph.astream(initial_state, config=config):
+                    step_count += 1
+                    logger.info(f"🔍 执行步骤 {step_count}: {step}")
+
+                    # 检查步骤内容
+                    if isinstance(step, dict):
+                        for node_name, node_result in step.items():
+                            logger.info(f"🔍 节点 {node_name} 执行结果: {type(node_result)}")
+                            if isinstance(node_result, dict) and 'current_step' in node_result:
+                                logger.info(f"🔍 当前步骤更新为: {node_result['current_step']}")
+
+                logger.info(f"🔍 流式执行完成，总步骤数: {step_count}")
+
+                # 获取最终状态
                 final_state = await self.compiled_graph.ainvoke(initial_state, config=config)
+
+                logger.info(f"🔍 图执行完成，最终状态: symbol={final_state.get('symbol')}, current_step={final_state.get('current_step')}")
+                logger.info(f"🔍 完成的步骤: {final_state.get('completed_steps', [])}")
+                logger.info(f"🔍 错误列表: {final_state.get('errors', [])}")
 
                 # 取消监控任务
                 if monitor_task:
                     monitor_task.cancel()
 
             except Exception as e:
+                logger.error(f"❌ 图执行异常: {e}")
+                logger.error(f"❌ 异常类型: {type(e).__name__}")
+                import traceback
+                logger.error(f"❌ 异常堆栈: {traceback.format_exc()}")
+
                 # 取消监控任务
                 if monitor_task:
                     monitor_task.cancel()

@@ -74,16 +74,19 @@ class MarketAnalyst(BaseAgent):
     async def analyze(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         执行市场技术分析
-        
+
         Args:
             symbol: 股票代码
             context: 分析上下文，包含日期、市场信息等
-            
+
         Returns:
             市场分析结果
         """
         self._log_analysis_start(symbol)
-        
+
+        # 检查前提条件
+        self._check_prerequisites()
+
         try:
             # 1. 获取市场数据
             market_data = await self._get_market_data(symbol, context)
@@ -128,109 +131,121 @@ class MarketAnalyst(BaseAgent):
     
     async def _get_market_data(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """获取市场数据"""
+        if not self.data_client:
+            error_msg = "数据客户端未配置，无法获取市场数据。请检查数据服务连接。"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+
         try:
-            if self.data_client:
-                # 调用数据服务获取股票数据
-                data = await self.data_client.get_stock_data(
-                    symbol=symbol,
-                    start_date=context.get("start_date"),
-                    end_date=context.get("end_date", datetime.now().strftime("%Y-%m-%d"))
-                )
-                return data
-            else:
-                # 模拟数据（开发阶段）
-                return {
-                    "symbol": symbol,
-                    "current_price": 100.0,
-                    "change": 2.5,
-                    "change_percent": 2.56,
-                    "volume": 1000000,
-                    "summary": f"获取到{symbol}的基础市场数据"
-                }
+            # 调用数据服务获取股票数据
+            data = await self.data_client.get_stock_data(
+                symbol=symbol,
+                start_date=context.get("start_date"),
+                end_date=context.get("end_date", datetime.now().strftime("%Y-%m-%d"))
+            )
+
+            if not data or "error" in data:
+                error_msg = f"数据服务返回错误或空数据: {data.get('error', '未知错误')}"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+
+            return data
+
         except Exception as e:
-            self.logger.error(f"❌ 获取市场数据失败: {e}")
-            return {"error": str(e)}
+            error_msg = f"获取市场数据失败: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
     
     async def _get_news_sentiment(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """获取新闻情绪数据"""
+        if not self.data_client:
+            error_msg = "数据客户端未配置，无法获取新闻情绪数据。请检查数据服务连接。"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+
         try:
-            if self.data_client:
-                # 调用数据服务获取新闻数据
-                news_data = await self.data_client.get_news_sentiment(symbol)
-                return news_data
-            else:
-                # 模拟数据
-                return {
-                    "sentiment_score": 0.6,
-                    "sentiment_label": "积极",
-                    "news_count": 10,
-                    "summary": f"获取到{symbol}的新闻情绪数据"
-                }
+            # 调用数据服务获取新闻数据
+            news_data = await self.data_client.get_news_sentiment(symbol)
+
+            if not news_data or "error" in news_data:
+                error_msg = f"新闻情绪数据获取失败: {news_data.get('error', '未知错误')}"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+
+            return news_data
+
         except Exception as e:
-            self.logger.error(f"❌ 获取新闻情绪失败: {e}")
-            return {"sentiment_score": 0.5, "sentiment_label": "中性"}
+            error_msg = f"获取新闻情绪数据失败: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
     
     async def _perform_technical_analysis(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行技术分析"""
+        if not market_data or "error" in market_data:
+            error_msg = f"市场数据无效，无法执行技术分析: {market_data.get('error', '数据为空')}"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+
         try:
-            # 这里会实现各种技术指标的计算
-            # 目前返回模拟数据
-            return {
-                "rsi": 65.5,
-                "macd": {"signal": "买入", "value": 1.2},
-                "bollinger_bands": {"position": "中轨附近"},
-                "moving_averages": {
-                    "ma5": 98.5,
-                    "ma20": 95.2,
-                    "ma50": 92.8
-                },
-                "support_resistance": {
-                    "support": 95.0,
-                    "resistance": 105.0
-                },
-                "trend": "上升趋势"
-            }
+            # 检查必要的数据字段
+            required_fields = ["current_price", "volume"]
+            missing_fields = [field for field in required_fields if field not in market_data]
+
+            if missing_fields:
+                error_msg = f"市场数据缺少必要字段: {missing_fields}"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+
+            # TODO: 实现真实的技术指标计算
+            # 这里需要集成技术分析库（如TA-Lib）来计算真实指标
+            error_msg = "技术分析功能尚未实现，需要集成技术分析库（如TA-Lib）"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+
         except Exception as e:
-            self.logger.error(f"❌ 技术分析失败: {e}")
-            return {}
+            error_msg = f"技术分析执行失败: {str(e)}"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
     
-    async def _generate_ai_analysis(self, symbol: str, market_data: Dict, 
+    async def _generate_ai_analysis(self, symbol: str, market_data: Dict,
                                   news_sentiment: Dict, technical_analysis: Dict) -> str:
         """生成AI分析报告"""
+        if not self.llm_client:
+            error_msg = "LLM客户端未配置，无法生成AI分析报告。请检查LLM服务连接。"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+
         try:
-            if self.llm_client:
-                # 准备提示词
-                prompt = self.prompt_template.format(
-                    symbol=symbol,
-                    market_data=str(market_data),
-                    news_sentiment=str(news_sentiment)
-                )
-                
-                # 调用LLM服务
-                response = await self.llm_client.generate(
-                    prompt=prompt,
-                    context={"technical_analysis": technical_analysis}
-                )
-                
-                return response.get("content", "AI分析生成失败")
-            else:
-                # 模拟AI分析
-                return f"""
-## {symbol} 市场技术分析报告
+            # 准备提示词
+            if not self.prompt_template:
+                error_msg = "提示词模板未加载，无法生成AI分析。"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
 
-### 技术指标分析
-- RSI指标: {technical_analysis.get('rsi', 'N/A')}，显示市场处于适中水平
-- MACD信号: {technical_analysis.get('macd', {}).get('signal', 'N/A')}
-- 移动平均线: 短期均线在长期均线之上，显示上升趋势
+            prompt = self.prompt_template.format(
+                symbol=symbol,
+                market_data=str(market_data),
+                news_sentiment=str(news_sentiment)
+            )
 
-### 价格趋势分析
-- 当前趋势: {technical_analysis.get('trend', '待分析')}
-- 支撑位: {technical_analysis.get('support_resistance', {}).get('support', 'N/A')}
-- 阻力位: {technical_analysis.get('support_resistance', {}).get('resistance', 'N/A')}
+            # 调用LLM服务
+            response = await self.llm_client.generate(
+                prompt=prompt,
+                context={"technical_analysis": technical_analysis}
+            )
 
-### 市场情绪分析
-- 新闻情绪: {news_sentiment.get('sentiment_label', '中性')}
-- 情绪得分: {news_sentiment.get('sentiment_score', 0.5)}
+            if not response or "error" in response:
+                error_msg = f"LLM服务返回错误: {response.get('error', '未知错误')}"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+
+            content = response.get("content")
+            if not content:
+                error_msg = "LLM服务返回空内容"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+
+            return content
 
 ### 投资建议
 基于当前技术分析和市场情绪，建议: 谨慎持有

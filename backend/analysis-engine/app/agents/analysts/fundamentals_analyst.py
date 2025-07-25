@@ -67,7 +67,10 @@ class FundamentalsAnalyst(BaseAgent):
             基本面分析结果
         """
         self._log_analysis_start(symbol)
-        
+
+        # 检查前提条件
+        self._check_prerequisites()
+
         try:
             # 1. 获取财务数据
             financial_data = await self._get_financial_data(symbol, context)

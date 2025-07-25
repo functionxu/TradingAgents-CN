@@ -61,15 +61,30 @@ class BaseAgent(ABC):
     async def analyze(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         执行分析 - 子类必须实现
-        
+
         Args:
             symbol: 股票代码
             context: 分析上下文
-            
+
         Returns:
             分析结果
         """
         pass
+
+    def _check_prerequisites(self):
+        """检查分析前提条件"""
+        errors = []
+
+        if not self.llm_client:
+            errors.append("LLM客户端未配置")
+
+        if not self.data_client:
+            errors.append("数据客户端未配置")
+
+        if errors:
+            error_msg = f"智能体 {self.name} 缺少必要资源: {', '.join(errors)}。请检查服务配置。"
+            self.logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
     
     async def _setup_tools(self):
         """设置工具 - 子类可重写"""
