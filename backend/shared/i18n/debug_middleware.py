@@ -25,24 +25,24 @@ class APIDebugMiddleware(BaseHTTPMiddleware):
         """处理请求"""
         if not self.enable_debug:
             return await call_next(request)
-        
+
         start_time = time.time()
-        
+
         # 记录请求开始
         self._log_request_start(request)
-        
+
         # 记录请求详情
         await self._log_request_details(request)
-        
+
         # 处理请求
         response = await call_next(request)
-        
+
         # 计算处理时间
         duration = int((time.time() - start_time) * 1000)
-        
+
         # 记录响应详情
-        self._log_response_details(response, duration)
-        
+        self._log_response_details(response, duration, request)
+
         return response
     
     def _log_request_start(self, request: Request):
@@ -89,28 +89,43 @@ class APIDebugMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             self.debug_logger.debug("log.debug.api.request_details_error", error=str(e))
     
-    def _log_response_details(self, response: Response, duration: int):
+    def _log_response_details(self, response: Response, duration: int, request: Request = None):
         """记录响应详情"""
         try:
             # 记录响应状态
             self.debug_logger.debug_api_response_prepared(status_code=response.status_code)
-            
+
             # 记录响应大小
             if hasattr(response, 'body') and response.body:
                 data_size = len(response.body)
                 self.debug_logger.debug_api_response_data(data_size=data_size)
-            
+
             # 记录响应时间
             self.debug_logger.debug_api_response_sent(duration=duration)
-            
-            # 慢请求警告
+
+            # 慢请求警告 - 添加详细信息
             if duration > 1000:  # 超过1秒的请求
-                self.debug_logger.debug_slow_query(
-                    query=f"{response.status_code}",
-                    duration=duration,
-                    threshold=1000
+                # 构建详细的请求信息
+                request_info = "Unknown"
+                if request:
+                    method = request.method
+                    path = str(request.url.path)
+                    query_params = str(dict(request.query_params)) if request.query_params else ""
+                    analysis_id = request.headers.get("X-Analysis-ID", "")
+
+                    request_info = f"{method} {path}"
+                    if query_params:
+                        request_info += f" params={query_params}"
+                    if analysis_id:
+                        request_info += f" analysis_id={analysis_id[:8]}"
+
+                # 记录详细的慢查询警告
+                self.debug_logger.warning(
+                    f"🐌 慢查询警告: {response.status_code} - {duration}ms (阈值: 1000ms)\n"
+                    f"   请求详情: {request_info}\n"
+                    f"   响应时间: {duration/1000:.1f}秒"
                 )
-        
+
         except Exception as e:
             self.debug_logger.debug("log.debug.api.response_details_error", error=str(e))
 

@@ -662,13 +662,34 @@ async def get_stock_data(
                     data=json.loads(cached_data)
                 )
         
-        # 从数据源获取
-        logger.info(f"🔍 调用数据源获取: {request.symbol}")
-        stock_data = get_china_stock_data_unified(
-            request.symbol,
-            request.start_date,
-            request.end_date
-        )
+        # 从数据源获取（添加超时处理）
+        import asyncio
+        import os
+
+        # 从环境变量获取超时时间，默认30秒
+        timeout_seconds = int(os.getenv("DATA_QUERY_TIMEOUT", "30"))
+
+        logger.info(f"🔍 调用数据源获取: {request.symbol} (超时: {timeout_seconds}秒)")
+
+        try:
+            # 使用asyncio.wait_for添加超时控制
+            stock_data = await asyncio.wait_for(
+                asyncio.to_thread(
+                    get_china_stock_data_unified,
+                    request.symbol,
+                    request.start_date,
+                    request.end_date
+                ),
+                timeout=timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            error_msg = f"数据查询超时 ({timeout_seconds}秒): {request.symbol}"
+            logger.error(f"⏰ {error_msg}")
+            raise HTTPException(status_code=408, detail=error_msg)
+        except Exception as e:
+            error_msg = f"数据查询失败: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
 
         logger.info(f"🔍 原始数据类型: {type(stock_data)}")
         logger.info(f"🔍 原始数据长度: {len(str(stock_data)) if stock_data else 0}")
