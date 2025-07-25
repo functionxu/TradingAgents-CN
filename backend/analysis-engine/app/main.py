@@ -54,8 +54,10 @@ agent_nodes: Optional[AgentNodes] = None
 class LLMClientAdapter:
     """LLM客户端适配器，将chat_completion包装成generate方法"""
 
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client: LLMClient, model_name: str = "qwen-plus-latest"):
         self.llm_client = llm_client
+        self.model_name = model_name
+        logger.info(f"🔧 LLM适配器配置模型: {model_name}")
 
     async def generate(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -72,9 +74,11 @@ class LLMClientAdapter:
             # 构建消息
             messages = [{"role": "user", "content": prompt}]
 
-            # 调用chat_completion
+            # 调用chat_completion，使用配置的模型
+            logger.info(f"🤖 调用LLM: model={self.model_name}")
             response = await self.llm_client.chat_completion(
                 messages=messages,
+                model=self.model_name,  # 使用配置的模型
                 temperature=0.7,
                 max_tokens=2000
             )
@@ -140,7 +144,8 @@ async def initialize_agents():
         # 创建智能体节点管理器
         llm_adapter = None
         if llm_client:
-            llm_adapter = LLMClientAdapter(llm_client)
+            # 使用默认模型，后续会在分析时动态配置
+            llm_adapter = LLMClientAdapter(llm_client, "qwen-plus-latest")
             logger.info("✅ LLM客户端适配器创建成功")
         else:
             logger.warning("⚠️ LLM客户端未初始化，智能体将无法生成AI分析")
@@ -520,8 +525,10 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         global llm_client, data_client
         llm_adapter = None
         if llm_client:
-            llm_adapter = LLMClientAdapter(llm_client)
-            logger.info("✅ 为图引擎创建LLM适配器")
+            # 使用请求中指定的模型
+            model_name = request_config.get("llm_model", "qwen-plus-latest")
+            llm_adapter = LLMClientAdapter(llm_client, model_name)
+            logger.info(f"✅ 为图引擎创建LLM适配器，模型: {model_name}")
         else:
             logger.warning("⚠️ LLM客户端未初始化，图引擎将无法生成AI分析")
 
@@ -540,6 +547,9 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         }
 
         logger.info(f"🔧 分析配置: {request_config}")
+        logger.info(f"🔧 请求详情: market_analyst={request.market_analyst}, fundamental_analyst={request.fundamental_analyst}")
+        logger.info(f"🔧 请求详情: news_analyst={request.news_analyst}, social_analyst={request.social_analyst}")
+        logger.info(f"🔧 转换后的分析师列表: {request.analysts}")
 
         # 创建图实例并传递客户端
         analyzer = TradingGraph(
@@ -547,7 +557,8 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
             data_client=data_client
         )
 
-        # 更新图配置
+        # 更新图配置（必须在初始化之前）
+        logger.info(f"🔧 应用分析配置...")
         analyzer.update_config(request_config)
 
         logger.info(f"🔍 初始化图引擎...")
