@@ -92,6 +92,12 @@ class TradingGraph:
             self.config["market_type"] = request_config["market_type"]
             logger.info(f"🔧 更新市场类型: {request_config['market_type']}")
 
+        # 如果分析师配置发生变化，需要标记图需要重新构建
+        if "analysts" in request_config:
+            self.graph = None  # 重置图，强制重新构建
+            self.compiled_graph = None
+            logger.info("🔧 分析师配置变化，将重新构建图")
+
     async def initialize(self):
         """初始化图引擎"""
         try:

@@ -559,6 +559,8 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
 
         # 更新图配置（必须在初始化之前）
         logger.info(f"🔧 应用分析配置...")
+        logger.info(f"🔧 request_config内容: {request_config}")
+        logger.info(f"🔧 request_config中的analysts: {request_config.get('analysts', 'NOT_FOUND')}")
         analyzer.update_config(request_config)
 
         logger.info(f"🔍 初始化图引擎...")
