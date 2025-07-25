@@ -74,17 +74,18 @@ class APIDebugMiddleware(BaseHTTPMiddleware):
                 self.debug_logger.debug_api_request_headers(headers=headers_str)
             
             # 记录请求体（如果启用且是POST/PUT请求）
+            # 注意：不能在中间件中读取请求体，因为FastAPI的请求体只能读取一次
+            # 这会导致后续的处理函数无法读取请求体，造成请求阻塞
             if self.log_body and request.method in ["POST", "PUT", "PATCH"]:
-                try:
-                    body = await request.body()
-                    if body:
-                        # 限制body大小，避免日志过大
-                        body_str = body.decode('utf-8')[:1000]
-                        if len(body) > 1000:
-                            body_str += "... (truncated)"
-                        self.debug_logger.debug("log.debug.api.request_body", body=body_str)
-                except Exception:
-                    pass  # 忽略body读取错误
+                # 只记录请求体存在，不实际读取内容
+                content_length = request.headers.get("content-length", "0")
+                content_type = request.headers.get("content-type", "unknown")
+                self.debug_logger.debug(
+                    "log.debug.api.request_body_info",
+                    content_length=content_length,
+                    content_type=content_type,
+                    note="Body content not logged to avoid FastAPI request body consumption issue"
+                )
         
         except Exception as e:
             self.debug_logger.debug("log.debug.api.request_details_error", error=str(e))

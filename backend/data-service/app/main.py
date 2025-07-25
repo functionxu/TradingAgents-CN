@@ -340,12 +340,18 @@ class UTF8JSONResponse(JSONResponse):
 
 app.default_response_class = UTF8JSONResponse
 
-# 添加调试中间件（开发环境）
+# 临时禁用所有中间件来排查阻塞问题
 import os
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"
 
+logger.info(f"🔧 [中间件] DEBUG_MODE: {DEBUG_MODE}")
+logger.info(f"🔧 [中间件] 临时禁用所有中间件进行测试")
+
+# 重新启用所有调试中间件（已修复APIDebugMiddleware的请求体读取问题）
 if DEBUG_MODE:
-    # API调试中间件
+    logger.info(f"🔧 [中间件] DEBUG模式，启用所有调试中间件")
+
+    # API调试中间件（已修复请求体读取问题）
     app.add_middleware(
         APIDebugMiddleware,
         enable_debug=True,
@@ -358,11 +364,12 @@ if DEBUG_MODE:
 
     # 验证调试中间件
     app.add_middleware(ValidationDebugMiddleware, enable_validation_debug=True)
-
-# 添加国际化中间件
+#
+# 测试国际化中间件
+logger.info(f"🔧 [中间件测试] 启用I18nMiddleware")
 app.add_middleware(I18nMiddleware, auto_detect=True)
 
-# 添加CORS中间件
+# 只保留CORS中间件（这个通常不会阻塞）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
