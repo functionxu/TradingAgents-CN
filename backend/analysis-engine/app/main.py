@@ -518,6 +518,15 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         logger.info(f"🔍 导入 TradingGraph...")
         from .graphs.trading_graph import TradingGraph
 
+        # 准备请求配置（必须在使用之前定义）
+        request_config = {
+            "analysts": request.analysts,  # 使用属性方法
+            "research_depth": request.research_depth,
+            "llm_provider": request.llm_provider.value if hasattr(request.llm_provider, 'value') else str(request.llm_provider),
+            "llm_model": request.llm_model,  # 使用属性方法
+            "market_type": request.market_type.value if hasattr(request.market_type, 'value') else str(request.market_type)
+        }
+
         # 初始化图引擎
         logger.info(f"🔍 创建 TradingGraph 实例...")
 
@@ -536,15 +545,6 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
             logger.info("✅ 为图引擎使用数据客户端")
         else:
             logger.warning("⚠️ 数据客户端未初始化，图引擎将无法获取数据")
-
-        # 准备请求配置
-        request_config = {
-            "analysts": request.analysts,  # 使用属性方法
-            "research_depth": request.research_depth,
-            "llm_provider": request.llm_provider.value if hasattr(request.llm_provider, 'value') else str(request.llm_provider),
-            "llm_model": request.llm_model,  # 使用属性方法
-            "market_type": request.market_type.value if hasattr(request.market_type, 'value') else str(request.market_type)
-        }
 
         logger.info(f"🔧 分析配置: {request_config}")
         logger.info(f"🔧 请求详情: market_analyst={request.market_analyst}, fundamental_analyst={request.fundamental_analyst}")
