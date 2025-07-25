@@ -23,9 +23,11 @@ from typing import Optional, Dict, Any
 
 # 导入共享模块
 from backend.shared.models.analysis import (
-    AnalysisRequest, AnalysisProgress, AnalysisResult, 
+    AnalysisProgress, AnalysisResult,
     AnalysisStatus, APIResponse, HealthCheck
 )
+# 导入本地模型
+from .models.requests import AnalysisRequest
 from backend.shared.utils.logger import get_service_logger
 from backend.shared.utils.config import get_service_config
 from backend.shared.clients.base import BaseServiceClient
@@ -482,7 +484,10 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
         logger.info(f"🔍 分析进度更新完成")
         
         # 准备分析参数（使用新的请求模型）
-        analysis_date = request.analysis_date or datetime.now().strftime("%Y-%m-%d")
+        if isinstance(request.analysis_date, datetime):
+            analysis_date = request.analysis_date.strftime("%Y-%m-%d")
+        else:
+            analysis_date = request.analysis_date or datetime.now().strftime("%Y-%m-%d")
         
         # 更新进度：获取数据
         await update_analysis_progress(
@@ -527,11 +532,11 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
 
         # 准备请求配置
         request_config = {
-            "analysts": request.analysts or ["market", "fundamentals", "news", "social"],
-            "research_depth": request.research_depth or 3,
-            "llm_provider": request.llm_provider or "dashscope",
-            "llm_model": request.llm_model or "qwen-plus-latest",
-            "market_type": request.market_type or "A股"
+            "analysts": request.analysts,  # 使用属性方法
+            "research_depth": request.research_depth,
+            "llm_provider": request.llm_provider.value if hasattr(request.llm_provider, 'value') else str(request.llm_provider),
+            "llm_model": request.llm_model,  # 使用属性方法
+            "market_type": request.market_type.value if hasattr(request.market_type, 'value') else str(request.market_type)
         }
 
         logger.info(f"🔧 分析配置: {request_config}")
