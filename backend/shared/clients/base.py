@@ -3,7 +3,7 @@
 """
 import httpx
 from typing import Optional, Dict, Any
-from ..utils.logger import get_service_logger
+from ..utils.logger import get_service_logger, get_analysis_id
 from ..utils.config import get_config, get_service_config
 
 
@@ -75,6 +75,11 @@ class BaseServiceClient:
                 if headers:
                     merged_headers.update(headers)
 
+                # 添加分析ID到请求头
+                analysis_id = get_analysis_id()
+                if analysis_id:
+                    merged_headers["X-Analysis-ID"] = analysis_id
+
                 # 使用指定的timeout或默认timeout
                 client_timeout = timeout if timeout is not None else 300.0  # 设置为300秒，适应LLM模型调用时间
 
@@ -88,10 +93,16 @@ class BaseServiceClient:
                     else:
                         response = await temp_client.post(endpoint, json=data)
             else:
+                # 添加分析ID到默认请求头
+                extra_headers = {}
+                analysis_id = get_analysis_id()
+                if analysis_id:
+                    extra_headers["X-Analysis-ID"] = analysis_id
+
                 if raw_data is not None:
-                    response = await self.client.post(endpoint, content=raw_data)
+                    response = await self.client.post(endpoint, content=raw_data, headers=extra_headers)
                 else:
-                    response = await self.client.post(endpoint, json=data)
+                    response = await self.client.post(endpoint, json=data, headers=extra_headers)
 
             response.raise_for_status()
             result = response.json()

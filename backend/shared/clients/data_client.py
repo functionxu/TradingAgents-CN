@@ -5,7 +5,7 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime, date
 from .base import BaseServiceClient
-from ..utils.logger import get_service_logger
+from ..utils.logger import get_service_logger, get_analysis_id
 
 logger = get_service_logger("data-client")
 

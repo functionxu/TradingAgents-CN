@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 import json
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import redis.asyncio as redis
@@ -27,6 +27,9 @@ from .config.settings import LLM_SERVICE_CONFIG
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 导入分析ID相关工具
+from backend.shared.utils.logger import set_analysis_id, AnalysisLoggerAdapter
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -163,6 +166,7 @@ async def health_check():
 @app.post("/api/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(
     request: ChatCompletionRequest,
+    fastapi_request: Request,
     background_tasks: BackgroundTasks,
     router: ModelRouter = Depends(get_model_router),
     tracker: UsageTracker = Depends(get_usage_tracker),
@@ -172,9 +176,16 @@ async def chat_completions(
     try:
         start_time = datetime.now()
 
-        # 记录请求详情
-        logger.info(f"🔍 LLM请求详情: model={request.model}, task_type={request.task_type}, messages_count={len(request.messages)}")
-        logger.info(f"🔍 LLM请求消息: {[{'role': msg.role, 'content': msg.content[:200] + '...' if len(msg.content) > 200 else msg.content} for msg in request.messages]}")
+        # 提取分析ID并设置到上下文
+        analysis_id = fastapi_request.headers.get("X-Analysis-ID")
+        if analysis_id:
+            set_analysis_id(analysis_id)
+            analysis_logger = AnalysisLoggerAdapter(logger, analysis_id)
+            analysis_logger.info(f"🔍 LLM请求详情: model={request.model}, task_type={request.task_type}, messages_count={len(request.messages)}")
+            analysis_logger.info(f"🔍 LLM请求消息: {[{'role': msg.role, 'content': msg.content[:200] + '...' if len(msg.content) > 200 else msg.content} for msg in request.messages]}")
+        else:
+            logger.info(f"🔍 LLM请求详情: model={request.model}, task_type={request.task_type}, messages_count={len(request.messages)}")
+            logger.info(f"🔍 LLM请求消息: {[{'role': msg.role, 'content': msg.content[:200] + '...' if len(msg.content) > 200 else msg.content} for msg in request.messages]}")
 
         # 1. 路由到最适合的模型
         selected_model = await router.route_request(

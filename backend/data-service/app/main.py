@@ -35,7 +35,7 @@ try:
 except ImportError:
     print("⚠️ python-dotenv未安装，将使用系统环境变量")
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import redis.asyncio as redis
@@ -47,7 +47,7 @@ from backend.shared.models.data import (
     NewsItem, FundamentalData, DataSourceStatus
 )
 from backend.shared.models.analysis import APIResponse, HealthCheck
-from backend.shared.utils.logger import get_service_logger
+from backend.shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
 from backend.shared.utils.config import get_service_config
 
 # 导入国际化模块
@@ -372,6 +372,11 @@ async def get_redis() -> Optional[redis.Redis]:
     return redis_client
 
 
+def get_analysis_id_from_headers(request) -> Optional[str]:
+    """从请求头中提取分析ID"""
+    return request.headers.get("X-Analysis-ID")
+
+
 @app.get("/health", response_model=HealthCheck)
 async def health_check():
     """健康检查"""
@@ -625,11 +630,19 @@ async def get_stock_info(
 @app.post("/api/stock/data", response_model=APIResponse)
 async def get_stock_data(
     request: StockDataRequest,
+    fastapi_request: Request,
     redis_client: Optional[redis.Redis] = Depends(get_redis)
 ):
     """获取股票历史数据"""
     try:
-        logger.info(f"📈 获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
+        # 提取分析ID并设置到上下文
+        analysis_id = get_analysis_id_from_headers(fastapi_request)
+        if analysis_id:
+            set_analysis_id(analysis_id)
+            analysis_logger = AnalysisLoggerAdapter(logger, analysis_id)
+            analysis_logger.info(f"📈 获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
+        else:
+            logger.info(f"📈 获取股票数据: {request.symbol} ({request.start_date} - {request.end_date})")
         
         # 检查缓存
         cache_key = f"stock_data:{request.symbol}:{request.start_date}:{request.end_date}"

@@ -28,7 +28,7 @@ from backend.shared.models.analysis import (
 )
 # 导入本地模型
 from .models.requests import AnalysisRequest
-from backend.shared.utils.logger import get_service_logger
+from backend.shared.utils.logger import get_service_logger, set_analysis_id, AnalysisLoggerAdapter
 from backend.shared.utils.config import get_service_config
 from backend.shared.clients.base import BaseServiceClient
 
@@ -471,10 +471,16 @@ async def save_analysis_result(analysis_id: str, result: AnalysisResult):
 async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
     """执行股票分析（后台任务）"""
     try:
-        logger.info(f"🔍 开始分析: {analysis_id} - {request.stock_code}")
-        logger.info(f"🔍 perform_stock_analysis 被调用")
-        logger.info(f"🔍 分析参数: analysis_id={analysis_id}, stock_code={request.stock_code}")
-        logger.info(f"🔍 请求详情: {request}")
+        # 设置分析ID到日志上下文
+        set_analysis_id(analysis_id)
+
+        # 创建带分析ID的日志适配器
+        analysis_logger = AnalysisLoggerAdapter(logger, analysis_id)
+
+        analysis_logger.info(f"🔍 开始分析: {analysis_id} - {request.stock_code}")
+        analysis_logger.info(f"🔍 perform_stock_analysis 被调用")
+        analysis_logger.info(f"🔍 分析参数: analysis_id={analysis_id}, stock_code={request.stock_code}")
+        analysis_logger.info(f"🔍 请求详情: {request}")
 
         # 更新进度：开始分析
         logger.info(f"🔍 更新分析进度...")
