@@ -199,6 +199,11 @@ python backend/tests/test_microservices_integration.py
 6. **`test_post_request.py`** - POST请求专项测试
    - 🎯 专门测试POST /api/stock/data接口
 
+7. **`test_analysis_engine_concurrency.py`** - Analysis Engine并发测试
+   - ⚡ 测试多股票同时分析的并发性能
+   - 📊 并发加速比和性能评估
+   - 🔍 并发问题诊断和错误分析
+
 ### 🚀 Data Service测试快速开始
 
 ```bash
@@ -210,7 +215,17 @@ python quick_test_data_service.py
 python run_data_service_tests.py
 ```
 
-详细使用说明请参考：[Data Service测试文档](README_data_service_tests.md)
+### ⚡ Analysis Engine并发测试
+
+```bash
+# 测试Analysis Engine并发性能
+cd backend/tests
+python test_analysis_engine_concurrency.py
+```
+
+详细使用说明请参考：
+- [Data Service测试文档](README_data_service_tests.md)
+- [并发测试指南](README_concurrency_testing.md)
 
 ## 🎯 最佳实践
 
