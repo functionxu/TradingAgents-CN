@@ -262,7 +262,7 @@ def run_stock_analysis(stock_symbol, analysis_date, analysts, research_depth, ll
                 config["deep_think_llm"] = "deepseek-chat"
         elif research_depth == 3:  # 3级 - 标准分析 (默认)
             config["max_debate_rounds"] = 1
-            config["max_risk_discuss_rounds"] = 2
+            config["max_risk_discuss_rounds"] = 1  # 减少到1轮，避免无限循环
             config["memory_enabled"] = True
             config["online_tools"] = True
             if llm_provider == "dashscope":
