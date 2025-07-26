@@ -649,7 +649,7 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
                 target_price=f"{market_data.get('current_price', 0):.2f}",
                 reasoning=analysis_data.get("reasoning", "分析完成"),
                 technical_analysis=json.dumps(analysis_result_raw, ensure_ascii=False, indent=2),
-                analysis_config=analysis_config
+                analysis_config=json.dumps(request_config, ensure_ascii=False)
             )
         else:
             # 分析失败的情况
@@ -664,7 +664,7 @@ async def perform_stock_analysis(analysis_id: str, request: AnalysisRequest):
                 target_price="0.00",
                 reasoning=f"分析失败: {error_msg}",
                 technical_analysis=json.dumps(analysis_result_raw, ensure_ascii=False, indent=2),
-                analysis_config=analysis_config
+                analysis_config=json.dumps(request_config, ensure_ascii=False)
             )
         
         # 保存分析结果
