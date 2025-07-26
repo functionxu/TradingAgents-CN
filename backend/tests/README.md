@@ -174,9 +174,48 @@ python backend/tests/test_microservices_integration.py
 3. 使用 `log_test_result` 方法记录测试结果
 4. 更新此 README 文档
 
+## 🆕 Data Service 专项测试套件
+
+### 📋 新增测试文件
+
+1. **`test_data_service.py`** - Data Service全面功能测试
+   - ✅ 健康检查、股票信息、历史数据、新闻获取
+   - ✅ 缓存功能、错误处理、分析ID追踪测试
+
+2. **`test_data_service_performance.py`** - Data Service性能测试
+   - ⚡ 并发测试、负载测试、压力测试
+   - 📊 响应时间统计、QPS测量
+
+3. **`run_data_service_tests.py`** - Data Service统一测试运行器
+   - 🔍 服务可用性检查、集成测试、边界情况测试
+   - 📄 自动生成JSON测试报告
+
+4. **`quick_test_data_service.py`** - Data Service快速测试
+   - 🚀 5分钟内完成核心功能验证
+
+5. **`debug_data_service.py`** - Data Service调试测试
+   - 🔍 详细的请求响应调试信息
+
+6. **`test_post_request.py`** - POST请求专项测试
+   - 🎯 专门测试POST /api/stock/data接口
+
+### 🚀 Data Service测试快速开始
+
+```bash
+# 快速验证Data Service功能
+cd backend/tests
+python quick_test_data_service.py
+
+# 运行完整测试套件
+python run_data_service_tests.py
+```
+
+详细使用说明请参考：[Data Service测试文档](README_data_service_tests.md)
+
 ## 🎯 最佳实践
 
 1. **定期运行测试**: 在代码变更后运行快速测试
 2. **CI/CD 集成**: 将测试集成到持续集成流程中
 3. **监控测试结果**: 关注测试成功率和响应时间趋势
 4. **及时修复失败**: 测试失败时及时调查和修复问题
+5. **使用专项测试**: 针对特定服务使用对应的专项测试套件
