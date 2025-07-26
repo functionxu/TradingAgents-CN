@@ -130,32 +130,103 @@ class MarketAnalyst(BaseAgent):
             }
     
     async def _get_market_data(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """获取市场数据"""
+        """获取市场数据 - 使用Data Service API"""
         if not self.data_client:
             error_msg = "数据客户端未配置，无法获取市场数据。请检查数据服务连接。"
             self.logger.error(f"❌ {error_msg}")
             raise RuntimeError(error_msg)
 
         try:
-            # 调用数据服务获取股票数据
+            self.logger.info(f"📊 [数据获取] 开始获取市场数据: {symbol}")
+
+            # 使用Data Service API获取结构化数据
             data = await self.data_client.get_stock_data(
                 symbol=symbol,
                 start_date=context.get("start_date"),
                 end_date=context.get("end_date", datetime.now().strftime("%Y-%m-%d"))
             )
 
-            if not data or "error" in data:
-                error_msg = f"数据服务返回错误或空数据: {data.get('error', '未知错误')}"
+            self.logger.info(f"📊 [数据获取] Data Service响应: {type(data)}")
+
+            # 检查数据是否有效
+            if not data:
+                error_msg = f"数据服务返回空数据"
                 self.logger.error(f"❌ {error_msg}")
                 raise RuntimeError(error_msg)
 
-            return data
+            # 如果data是字符串（旧接口），需要解析
+            if isinstance(data, str):
+                if "❌" in data or "error" in data.lower():
+                    error_msg = f"数据服务返回错误: {data}"
+                    self.logger.error(f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
+
+                # 旧接口返回字符串，需要转换为结构化数据
+                self.logger.warning(f"⚠️ 收到字符串格式数据，尝试解析...")
+                return self._parse_string_data_to_structured(data, symbol)
+
+            # 如果data是字典（新接口），直接使用
+            elif isinstance(data, dict):
+                if "error" in data:
+                    error_msg = f"数据服务返回错误: {data.get('error', '未知错误')}"
+                    self.logger.error(f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
+
+                self.logger.info(f"✅ 收到结构化数据，字段: {list(data.keys())}")
+                return data
+
+            else:
+                error_msg = f"数据服务返回未知格式: {type(data)}"
+                self.logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
 
         except Exception as e:
             error_msg = f"获取市场数据失败: {str(e)}"
             self.logger.error(f"❌ {error_msg}")
             raise RuntimeError(error_msg)
-    
+
+    def _parse_string_data_to_structured(self, data_str: str, symbol: str) -> Dict[str, Any]:
+        """将字符串格式的数据解析为结构化数据"""
+        try:
+            self.logger.info(f"🔄 [数据解析] 解析字符串数据为结构化格式")
+
+            # 尝试从字符串中提取价格和成交量信息
+            import re
+
+            # 查找价格信息
+            price_pattern = r'(?:价格|Price|收盘价|Close)[:：]\s*([0-9]+\.?[0-9]*)'
+            price_match = re.search(price_pattern, data_str, re.IGNORECASE)
+            current_price = float(price_match.group(1)) if price_match else 0.0
+
+            # 查找成交量信息
+            volume_pattern = r'(?:成交量|Volume|交易量)[:：]\s*([0-9,]+)'
+            volume_match = re.search(volume_pattern, data_str, re.IGNORECASE)
+            volume = int(volume_match.group(1).replace(',', '')) if volume_match else 0
+
+            # 构造结构化数据
+            structured_data = {
+                "symbol": symbol,
+                "current_price": current_price,
+                "volume": volume,
+                "raw_data": data_str,
+                "data_source": "parsed_from_string"
+            }
+
+            self.logger.info(f"✅ [数据解析] 解析完成: current_price={current_price}, volume={volume}")
+            return structured_data
+
+        except Exception as e:
+            self.logger.error(f"❌ [数据解析] 解析失败: {str(e)}")
+            # 返回默认结构，避免分析完全失败
+            return {
+                "symbol": symbol,
+                "current_price": 0.0,
+                "volume": 0,
+                "raw_data": data_str,
+                "data_source": "parse_failed",
+                "error": str(e)
+            }
+
     async def _get_news_sentiment(self, symbol: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """获取新闻情绪数据"""
         if not self.data_client:

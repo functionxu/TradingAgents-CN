@@ -105,7 +105,9 @@ def _parse_stock_data_to_structured_format(stock_data: str, symbol: str, start_d
             "high_prices": [],
             "low_prices": [],
             "dates": [],
-            "raw_data": stock_data
+            "raw_data": stock_data,
+            "current_price": 0.0,  # Analysis Engine需要的字段
+            "volume": 0            # Analysis Engine需要的字段
         }
 
         lines = stock_data.strip().split('\n')
@@ -189,7 +191,21 @@ def _parse_stock_data_to_structured_format(stock_data: str, symbol: str, start_d
                     print(f"⚠️ 解析数据行失败: {line} - {e}")
                     continue
 
+        # 添加Analysis Engine需要的字段
+        if result["close_prices"]:
+            # 使用最新的收盘价作为当前价格
+            result["current_price"] = result["close_prices"][-1]
+        else:
+            result["current_price"] = 0.0
+
+        if result["volumes"]:
+            # 使用最新的成交量
+            result["volume"] = result["volumes"][-1]
+        else:
+            result["volume"] = 0
+
         print(f"✅ 解析股票数据成功: {symbol}, 共{len(result['close_prices'])}条记录")
+        print(f"📊 添加Analysis Engine字段: current_price={result['current_price']}, volume={result['volume']}")
         return result
 
     except Exception as e:
@@ -207,6 +223,8 @@ def _parse_stock_data_to_structured_format(stock_data: str, symbol: str, start_d
             "low_prices": [],
             "dates": [],
             "raw_data": stock_data,
+            "current_price": 0.0,  # 添加Analysis Engine需要的字段
+            "volume": 0,           # 添加Analysis Engine需要的字段
             "error": str(e)
         }
 
