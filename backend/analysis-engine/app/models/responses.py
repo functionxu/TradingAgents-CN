@@ -16,7 +16,7 @@ class AnalysisResponse(BaseModel):
     timestamp: str = Field(..., description="时间戳")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "symbol": "AAPL",
@@ -46,7 +46,7 @@ class ToolCallResponse(BaseModel):
     timestamp: str = Field(..., description="时间戳")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "tool_name": "get_stock_data",
