@@ -24,3 +24,4 @@ print(decision)
 
 # Memorize mistakes and reflect
 # ta.reflect_and_remember(1000) # parameter is the position returns
+
