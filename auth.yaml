@@ -16,6 +16,17 @@ credentials:
       - admin
       - editor
       - viewer
+    dafenzi1:
+      email: null
+      failed_login_attempts: 0
+      first_name: null
+      last_name: null
+      logged_in: true
+      password: $2b$12$D4uL9jbb123uStU8y9NEruWhRfONiXDr5JYM7RM82N1.ZimEGAbkq
+      roles:
+      - admin
+      - editor
+      - viewer
     xuhongju:
       email: null
       failed_login_attempts: 0
