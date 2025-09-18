@@ -1577,7 +1577,7 @@ def main():
             st.info(f"🕒 上次分析时间: {st.session_state.last_analysis_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 if __name__ == "__main__":
-    from login import login
+    #from login import login
 
-    login(callback=main)
-    #main()
+    #login(callback=main)
+    main()
